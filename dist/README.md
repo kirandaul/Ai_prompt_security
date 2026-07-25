@@ -1,4 +1,4 @@
-# Dashboard — Admin Security Console
+# Dashboard — Cybage Browser Prompt Detection Admin Console
 
 React + Vite admin console. Login, KPIs, charts, filters, and a live newest-first
 event feed. Talks only to the backend API.

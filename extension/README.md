@@ -1,4 +1,4 @@
-# Extension — AI Prompt Security Gateway
+# Extension — Cybage Browser Prompt Detection
 
 Chrome extension (Manifest V3) that monitors ChatGPT & Claude prompts, detects
 sensitive data, blocks the send button, offers one-click auto-fix, and scans

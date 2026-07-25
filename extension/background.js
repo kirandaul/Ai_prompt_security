@@ -1,3 +1,3 @@
 chrome.runtime.onInstalled.addListener(() => {
-    console.log("Prompt Security Gateway Installed");
+    console.log("Cybage Browser Prompt Detection Installed");
 });

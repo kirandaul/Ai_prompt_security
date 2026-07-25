@@ -275,7 +275,7 @@ async def scan_prompt(prompt: str) -> dict:
 # FastAPI app
 # ---------------------------------------------------------------------------
 
-app = FastAPI(title="Prompt Security Gateway API", version="1.0.0")
+app = FastAPI(title="Cybage Browser Prompt Detection API", version="1.2.0")
 
 app.add_middleware(
     CORSMiddleware,

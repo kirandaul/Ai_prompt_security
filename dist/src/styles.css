@@ -18,7 +18,7 @@ body{
 .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px}
 .brand{display:flex;align-items:center;gap:12px}
 .logo{width:40px;height:40px;border-radius:11px;display:grid;place-items:center;font-size:20px;
-  background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 8px 20px rgba(99,102,241,.28)}
+  background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 8px 20px rgba(99,102,241,.28);object-fit:contain;padding:4px}
 .brand h1{font-size:18px;margin:0;letter-spacing:.2px;display:flex;align-items:center;gap:8px}
 .brand p{margin:0;font-size:12px;color:var(--muted)}
 .pill{font-size:11px;padding:3px 9px;border-radius:999px;background:rgba(22,163,74,.12);color:#15803d;border:1px solid rgba(22,163,74,.25)}

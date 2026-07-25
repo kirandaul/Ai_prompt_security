@@ -1,6 +1,6 @@
-# Backend — Detection Engine & API
+# Backend — Cybage Browser Prompt Detection Engine
 
-FastAPI service: 15 detectors, SQLite audit log, admin auth, and image OCR.
+FastAPI service: 15+ detectors, SQLite audit log, admin auth, and image OCR.
 The extension calls it; the dashboard reads from it.
 
 ## Requirements

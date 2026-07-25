@@ -1,5 +1,5 @@
 /*
- * content.js — Prompt Security Gateway UI + wiring.
+ * content.js — Cybage Browser Prompt Detection UI + wiring.
  *
  * Detection logic lives in detection.js (loaded first via the manifest and
  * exposed on `self.PSG`). This file only:
@@ -15,7 +15,7 @@
     'use strict';
 
     if (!self.PSG) {
-        console.error('Prompt Security Gateway: detection.js failed to load; aborting.');
+        console.error('Cybage Browser Prompt Detection: detection.js failed to load; aborting.');
         return;
     }
 
@@ -73,7 +73,7 @@
             panel.innerHTML = `
                 <button class="psg-panel-close" aria-label="Close security panel">×</button>
                 <div class="psg-panel-header">
-                    <span class="psg-panel-title">🔒 Prompt Security Gateway</span>
+                    <span class="psg-panel-title">🔒 Cybage Browser Prompt Detection</span>
                 </div>
                 <div class="psg-panel-content">
                     <div class="psg-status-row">
@@ -339,7 +339,7 @@
                 renderCombined();
             }
         } catch (err) {
-            console.error('Prompt Security Gateway scan error:', err);
+            console.error('Cybage Browser Prompt Detection scan error:', err);
         }
     };
 
@@ -425,5 +425,5 @@
     setInterval(scheduleScan, 1500);
 
     scanAndUpdate();
-    console.log('✅ Prompt Security Gateway initialized (mode-aware, document-level detection)');
+    console.log('✅ Cybage Browser Prompt Detection initialized (mode-aware, document-level detection)');
 })();

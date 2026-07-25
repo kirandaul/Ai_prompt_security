@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "Prompt Security Gateway",
-  "version": "1.1.0",
+  "name": "Cybage Browser Prompt Detection",
+  "version": "1.2.0",
   "description": "Detects and blocks sensitive information in AI chat prompts before they are sent.",
 
   "permissions": [

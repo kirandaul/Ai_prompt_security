@@ -1,5 +1,5 @@
 /*
- * detection.js — shared detection logic for Prompt Security Gateway.
+ * detection.js — shared detection logic for Cybage Browser Prompt Detection.
  *
  * Runs in TWO environments from the same file:
  *   - Browser (content script): attaches its API to `self.PSG`.

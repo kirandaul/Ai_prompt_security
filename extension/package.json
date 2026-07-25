@@ -1,6 +1,6 @@
 {
-  "name": "prompt-security-gateway",
-  "version": "1.1.0",
+  "name": "cybage-browser-prompt-detection",
+  "version": "1.2.0",
   "private": true,
   "description": "Chrome extension that detects sensitive information in AI chat prompts.",
   "scripts": {

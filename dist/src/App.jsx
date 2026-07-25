@@ -37,8 +37,8 @@ function Login({ onLogin }) {
   return (
     <div className="overlay">
       <div className="login">
-        <div className="logo">🛡️</div>
-        <h2>Prompt Firewall</h2>
+        <img src="/cybage_logo1.webp" alt="Cybage" className="logo" />
+        <h2>Cybage Browser Prompt Detection</h2>
         <p>Security Console — Admin sign in</p>
         <div className="fld">
           <input type="text" value={u} onChange={(e) => setU(e.target.value)}
@@ -110,9 +110,9 @@ function Dashboard({ user, onLogout }) {
     <div className="wrap">
       <div className="top">
         <div className="brand">
-          <div className="logo">🛡️</div>
+          <img src="/cybage_logo1.webp" alt="Cybage" className="logo" />
           <div>
-            <h1>Prompt Firewall <span className="pill">LIVE</span></h1>
+            <h1>Cybage Browser Prompt Detection <span className="pill">LIVE</span></h1>
             <p>AI Data-Loss Prevention · Security Console</p>
           </div>
         </div>

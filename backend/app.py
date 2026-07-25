@@ -23,7 +23,7 @@ DETECTORS = [
 
 @app.get("/")
 def home():
-    return {"message": "AI Security Gateway Running"}
+    return {"message": "Cybage Browser Prompt Detection Running"}
 
 
 @app.post("/scan")
