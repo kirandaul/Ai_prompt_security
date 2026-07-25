@@ -1,0 +1,80 @@
+================================================================================
+  CYBAGE DETECTOR TESTING - QUICK EXPORT GUIDE
+================================================================================
+
+STEP 1: START THE DASHBOARD
+---------------------------
+✓ Backend is running on: http://127.0.0.1:3000
+✓ Open dashboard: http://127.0.0.1:3000/tester
+✓ You should see 1,250+ test cases loaded
+
+STEP 2: RUN ALL TESTS
+---------------------
+1. In the dashboard, click [⚡ Run All Tests]
+2. Confirm the dialog (e.g., "Run 1250 tests?")
+3. Wait for all tests to complete (progress bar will show 100%)
+4. Results will update automatically
+
+STEP 3: CHECK RESULTS
+---------------------
+After tests complete, you'll see:
+- Total tests run
+- Number of tests PASSED ✅
+- Number of tests FAILED ❌
+- Pass rate percentage
+
+STEP 4: EXPORT FAILED TESTS
+---------------------------
+1. Click [📋 Export Failed Tests] button
+2. A dialog will show: "Exported X failed test cases"
+3. A text file will download: failed-test-cases-TIMESTAMP.txt
+
+STEP 5: DOWNLOAD LOCATION
+-------------------------
+The file will be in your browser's Downloads folder
+- File name: failed-test-cases-1234567890.txt
+- File size: Depends on number of failed cases
+- Format: Plain text with detailed formatting
+
+STEP 6: REVIEW THE FILE
+-----------------------
+Each failed test case includes:
+- Test ID and name
+- Expected detector vs found detectors
+- The actual prompt text
+- Backend findings (if any)
+- Severity and confidence levels
+
+TROUBLESHOOTING
+===============
+
+Q: Dashboard shows "0 tests" or won't load
+A: Refresh the page. Check browser console (F12) for errors.
+
+Q: "Export Failed Tests" button is disabled
+A: You need to run tests first. Click [⚡ Run All Tests]
+
+Q: Export button does nothing
+A: Your browser may have blocked file downloads. Check notifications.
+
+Q: Text file is empty or tiny
+A: Great! It means all tests passed. No failed cases to report.
+
+ADDITIONAL EXPORTS
+==================
+
+You can also export ALL results (passed + failed) as JSON:
+1. Click [📥 Export Results] button
+2. Get a JSON file with complete test data
+3. Use for programmatic analysis or reports
+
+FILES CREATED
+=============
+- dashboard button: backend/tester/index.html
+- export function: backend/tester/app.js → exportFailedTests()
+- guide: EXPORT_FAILED_TESTS_FEATURE.md
+
+================================================================================
+Generated: 2024
+Test Framework: Cybage Browser Prompt Detection Dashboard
+================================================================================

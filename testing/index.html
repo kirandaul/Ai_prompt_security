@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Prompt Detector Testing Dashboard</title>
+
+    <style>
+        body {
+            font-family: Arial;
+            margin: 20px;
+            background: #f5f7fa;
+        }
+
+        textarea {
+            width: 100%;
+            height: 150px;
+        }
+
+        button {
+            padding: 10px;
+            margin: 5px;
+            cursor: pointer;
+        }
+
+        .card {
+            background: white;
+            padding: 15px;
+            margin: 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px #ccc;
+        }
+
+        .success {
+            color: green;
+        }
+
+        .fail {
+            color: red;
+        }
+
+        select,
+        input {
+            padding: 8px;
+        }
+    </style>
+
+</head>
+
+
+<body>
+
+    <h1>Enterprise Prompt Detector Tester</h1>
+
+
+    <select id="categoryFilter">
+        <option value="">All Categories</option>
+        <option>SECRET</option>
+        <option>PII</option>
+        <option>ATTACK</option>
+        <option>MISC</option>
+    </select>
+
+
+    <button onclick="loadPrompts()">
+        Refresh Prompts
+    </button>
+
+
+    <button onclick="runAll()">
+        Run All 1000 Tests
+    </button>
+
+
+    <hr>
+
+
+    <div id="promptList"></div>
+
+
+    <h2>Custom Prompt Test</h2>
+
+
+    <textarea id="customPrompt" placeholder="Enter your prompt">
+</textarea>
+
+
+    <button onclick="testCustom()">
+        Scan
+    </button>
+
+
+    <h2>API Response</h2>
+
+    <pre id="result"></pre>
+
+
+
+    <script src="prompts.js"></script>
+    <script src="app.js"></script>
+
+
+</body>
+
+</html>

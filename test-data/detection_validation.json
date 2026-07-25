@@ -1,0 +1,471 @@
+{
+  "version": "2.0",
+  "description": "Enhanced test cases with expected actions, validation types, and decision reasons",
+  "generated_at": "2025-01-15T10:00:00Z",
+  "total_cases": 60,
+  "test_cases": [
+    {
+      "id": 1,
+      "category": "CREDIT_CARD",
+      "type": "TEST_DATA",
+      "detector": "CREDIT_CARD_DETECTOR",
+      "prompt": "Use test card 4111111111111111",
+      "evidence": "4111111111111111",
+      "expectedDetection": true,
+      "expectedAction": "ALLOW",
+      "validation": {
+        "luhnValid": true,
+        "isTestCard": true,
+        "testCardPattern": "VISA_TEST",
+        "reason": "Known test card - no real payment risk"
+      },
+      "decision": {
+        "status": "ALLOWED",
+        "severity": "LOW",
+        "confidence": 0.98,
+        "explanation": "Test credit card detected. This is a known test card (4111111111111111) used in development and testing environments. No real payment data at risk."
+      }
+    },
+    {
+      "id": 2,
+      "category": "CREDIT_CARD",
+      "type": "REAL_DATA",
+      "detector": "CREDIT_CARD_DETECTOR",
+      "prompt": "Customer card number: 4532015112830366",
+      "evidence": "4532015112830366",
+      "expectedDetection": true,
+      "expectedAction": "BLOCK",
+      "validation": {
+        "luhnValid": true,
+        "isTestCard": false,
+        "cardType": "VISA",
+        "reason": "Valid real-looking card pattern"
+      },
+      "decision": {
+        "status": "BLOCKED",
+        "severity": "CRITICAL",
+        "confidence": 0.95,
+        "explanation": "Real credit card detected. This appears to be a valid payment card (passes Luhn validation, legitimate card pattern). Sensitive financial data should not be shared in prompts."
+      }
+    },
+    {
+      "id": 3,
+      "category": "CREDIT_CARD",
+      "type": "FAKE_DATA",
+      "detector": "CREDIT_CARD_DETECTOR",
+      "prompt": "Invalid card: 1234567890123456",
+      "evidence": "1234567890123456",
+      "expectedDetection": true,
+      "expectedAction": "ALLOW",
+      "validation": {
+        "luhnValid": false,
+        "isTestCard": false,
+        "reason": "Fails Luhn validation - not real card"
+      },
+      "decision": {
+        "status": "ALLOWED",
+        "severity": "LOW",
+        "confidence": 0.90,
+        "explanation": "Invalid credit card pattern detected. This sequence fails Luhn validation and is not a real payment card. No actual payment data at risk."
+      }
+    },
+    {
+      "id": 4,
+      "category": "EMAIL",
+      "type": "TEST_DATA",
+      "detector": "EMAIL_DETECTOR",
+      "prompt": "Contact: test@example.com",
+      "evidence": "test@example.com",
+      "expectedDetection": true,
+      "expectedAction": "ALLOW",
+      "validation": {
+        "domain": "example.com",
+        "isFakeDomain": true,
+        "domainType": "RESERVED_EXAMPLE",
+        "reason": "Reserved example domain for documentation"
+      },
+      "decision": {
+        "status": "ALLOWED",
+        "severity": "LOW",
+        "confidence": 0.99,
+        "explanation": "Example/test email detected. The domain 'example.com' is a reserved domain for examples and documentation (RFC 2606). This is test data, not real PII."
+      }
+    },
+    {
+      "id": 5,
+      "category": "EMAIL",
+      "type": "FAKE_DATA",
+      "detector": "EMAIL_DETECTOR",
+      "prompt": "Dummy contact: user@test.local",
+      "evidence": "user@test.local",
+      "expectedDetection": true,
+      "expectedAction": "ALLOW",
+      "validation": {
+        "domain": "test.local",
+        "isFakeDomain": true,
+        "domainType": "LOCAL_NETWORK",
+        "reason": "Local test domain"
+      },
+      "decision": {
+        "status": "ALLOWED",
+        "severity": "LOW",
+        "confidence": 0.95,
+        "explanation": "Test email detected. The '.local' domain and 'test' prefix indicate this is test data for local networks, not real PII."
+      }
+    },
+    {
+      "id": 6,
+      "category": "EMAIL",
+      "type": "REAL_DATA",
+      "detector": "EMAIL_DETECTOR",
+      "prompt": "My email is john.smith@company.com for contact",
+      "evidence": "john.smith@company.com",
+      "expectedDetection": true,
+      "expectedAction": "BLOCK",
+      "validation": {
+        "domain": "company.com",
+        "isFakeDomain": false,
+        "domainType": "COMMERCIAL",
+        "reason": "Legitimate domain with real user pattern"
+      },
+      "decision": {
+        "status": "BLOCKED",
+        "severity": "HIGH",
+        "confidence": 0.92,
+        "explanation": "Real email address detected. The domain appears to be a legitimate commercial domain with a personalized local part. This is personally identifiable information (PII) that should not be shared in prompts."
+      }
+    },
+    {
+      "id": 7,
+      "category": "PASSWORD",
+      "type": "FAKE_DATA",
+      "detector": "PASSWORD_DETECTOR",
+      "prompt": "password = TestPassword123",
+      "evidence": "TestPassword123",
+      "expectedDetection": true,
+      "expectedAction": "ALLOW",
+      "validation": {
+        "isPlaceholder": true,
+        "placeholderIndicators": ["test", "password"],
+        "reason": "Contains placeholder keywords"
+      },
+      "decision": {
+        "status": "ALLOWED",
+        "severity": "LOW",
+        "confidence": 0.88,
+        "explanation": "Placeholder/example password detected. The value contains common placeholder indicators ('test', 'password') indicating this is example/documentation code, not a real password."
+      }
+    },
+    {
+      "id": 8,
+      "category": "PASSWORD",
+      "type": "FAKE_DATA",
+      "detector": "PASSWORD_DETECTOR",
+      "prompt": "pwd: changeme",
+      "evidence": "changeme",
+      "expectedDetection": true,
+      "expectedAction": "ALLOW",
+      "validation": {
+        "isPlaceholder": true,
+        "placeholderIndicators": ["changeme"],
+        "reason": "Common placeholder password"
+      },
+      "decision": {
+        "status": "ALLOWED",
+        "severity": "LOW",
+        "confidence": 0.90,
+        "explanation": "Placeholder password detected. 'changeme' is a well-known placeholder used in documentation and examples, not an actual password."
+      }
+    },
+    {
+      "id": 9,
+      "category": "PASSWORD",
+      "type": "REAL_DATA",
+      "detector": "PASSWORD_DETECTOR",
+      "prompt": "password = Prod@2024!Secure",
+      "evidence": "Prod@2024!Secure",
+      "expectedDetection": true,
+      "expectedAction": "BLOCK",
+      "validation": {
+        "isPlaceholder": false,
+        "complexity": "HIGH",
+        "specialChars": true,
+        "reason": "Complex password with production indicators"
+      },
+      "decision": {
+        "status": "BLOCKED",
+        "severity": "CRITICAL",
+        "confidence": 0.96,
+        "explanation": "Real password detected. This appears to be an actual password with high complexity (contains uppercase, lowercase, numbers, special characters, and 'Prod' indicating production). Passwords should never be shared in prompts."
+      }
+    },
+    {
+      "id": 10,
+      "category": "API_KEY",
+      "type": "FAKE_DATA",
+      "detector": "API_KEY_DETECTOR",
+      "prompt": "API key: sk-test-example-key-12345",
+      "evidence": "sk-test-example-key-12345",
+      "expectedDetection": true,
+      "expectedAction": "ALLOW",
+      "validation": {
+        "isTestKey": true,
+        "keyType": "OPENAI_TEST",
+        "prefix": "sk-test",
+        "reason": "OpenAI test key prefix"
+      },
+      "decision": {
+        "status": "ALLOWED",
+        "severity": "LOW",
+        "confidence": 0.94,
+        "explanation": "Test API key detected. The 'sk-test' prefix indicates this is a test key for OpenAI API (or similar test environment). Test keys have limited permissions and are safe to share."
+      }
+    },
+    {
+      "id": 11,
+      "category": "API_KEY",
+      "type": "REAL_DATA",
+      "detector": "API_KEY_DETECTOR",
+      "prompt": "sk-proj-abcdef1234567890ghijklmnopqrstu",
+      "evidence": "sk-proj-abcdef1234567890ghijklmnopqrstu",
+      "expectedDetection": true,
+      "expectedAction": "BLOCK",
+      "validation": {
+        "isTestKey": false,
+        "keyType": "OPENAI_PRODUCTION",
+        "prefix": "sk-proj",
+        "entropy": 0.92,
+        "reason": "Production key with high entropy"
+      },
+      "decision": {
+        "status": "BLOCKED",
+        "severity": "CRITICAL",
+        "confidence": 0.97,
+        "explanation": "Production API key detected. This appears to be a real API key for production use (sk-proj prefix, high entropy). API keys grant access to services and should never be shared in prompts."
+      }
+    },
+    {
+      "id": 12,
+      "category": "JWT",
+      "type": "FAKE_DATA",
+      "detector": "JWT_DETECTOR",
+      "prompt": "token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0In0.test",
+      "evidence": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0In0.test",
+      "expectedDetection": true,
+      "expectedAction": "ALLOW",
+      "validation": {
+        "isTestToken": true,
+        "signature": "INVALID",
+        "payload": {"sub": "test"},
+        "reason": "Invalid signature and test payload"
+      },
+      "decision": {
+        "status": "ALLOWED",
+        "severity": "LOW",
+        "confidence": 0.91,
+        "explanation": "Example JWT detected. This JWT has an invalid signature and test payload, indicating it's for documentation/examples. Real JWTs contain sensitive session data and should not be shared."
+      }
+    },
+    {
+      "id": 13,
+      "category": "JWT",
+      "type": "REAL_DATA",
+      "detector": "JWT_DETECTOR",
+      "prompt": "Authorization header: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2MjM4NTI3MzEiLCJuYW1lIjoiSm9obiBEb2UiLCJlbWFpbCI6ImpvaG4uZG9lQGV4YW1wbGUuY29tIn0.5mHSgwrK2z7Qx8pL9nM0oP2rT3uVwXyZ1aB2cD3eF4g",
+      "evidence": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2MjM4NTI3MzEiLCJuYW1lIjoiSm9obiBEb2UiLCJlbWFpbCI6ImpvaG4uZG9lQGV4YW1wbGUuY29tIn0.5mHSgwrK2z7Qx8pL9nM0oP2rT3uVwXyZ1aB2cD3eF4g",
+      "expectedDetection": true,
+      "expectedAction": "BLOCK",
+      "validation": {
+        "isTestToken": false,
+        "signature": "VALID",
+        "payload": {
+          "sub": "6238527331",
+          "name": "John Doe",
+          "email": "john.doe@example.com"
+        },
+        "reason": "Valid signature with PII in payload"
+      },
+      "decision": {
+        "status": "BLOCKED",
+        "severity": "CRITICAL",
+        "confidence": 0.98,
+        "explanation": "Real JWT session token detected. This JWT has a valid signature and contains personally identifiable information (user ID, name, email) in the payload. Session tokens grant access and should never be shared in prompts."
+      }
+    },
+    {
+      "id": 14,
+      "category": "PII_PAN",
+      "type": "FAKE_DATA",
+      "detector": "PAN_DETECTOR",
+      "prompt": "PAN: ABCDE0000F",
+      "evidence": "ABCDE0000F",
+      "expectedDetection": true,
+      "expectedAction": "ALLOW",
+      "validation": {
+        "format": "VALID_FORMAT",
+        "isTestValue": true,
+        "testPatterns": ["0000"],
+        "reason": "Contains obvious test patterns"
+      },
+      "decision": {
+        "status": "ALLOWED",
+        "severity": "LOW",
+        "confidence": 0.89,
+        "explanation": "Example PAN (Permanent Account Number) detected. This value contains obvious test patterns (0000 sequence) and is used for examples/documentation. Real PAN is sensitive tax information and should not be shared."
+      }
+    },
+    {
+      "id": 15,
+      "category": "PII_PAN",
+      "type": "REAL_DATA",
+      "detector": "PAN_DETECTOR",
+      "prompt": "My PAN is AKXPQ1234K for reference",
+      "evidence": "AKXPQ1234K",
+      "expectedDetection": true,
+      "expectedAction": "BLOCK",
+      "validation": {
+        "format": "VALID_FORMAT",
+        "isTestValue": false,
+        "checksum": "VALID",
+        "reason": "Valid PAN format without test patterns"
+      },
+      "decision": {
+        "status": "BLOCKED",
+        "severity": "HIGH",
+        "confidence": 0.94,
+        "explanation": "Real PAN (Permanent Account Number) detected. PAN is sensitive tax information in India linked to individual identity. This is personally identifiable information that should not be shared in prompts."
+      }
+    },
+    {
+      "id": 16,
+      "category": "PII_AADHAAR",
+      "type": "FAKE_DATA",
+      "detector": "AADHAAR_DETECTOR",
+      "prompt": "Aadhaar: 000000000000",
+      "evidence": "000000000000",
+      "expectedDetection": true,
+      "expectedAction": "ALLOW",
+      "validation": {
+        "format": "VALID_FORMAT",
+        "isTestValue": true,
+        "testPatterns": ["0000"],
+        "reason": "All zeros - test value"
+      },
+      "decision": {
+        "status": "ALLOWED",
+        "severity": "LOW",
+        "confidence": 0.95,
+        "explanation": "Example Aadhaar number detected. This is clearly a test value (all zeros). Real Aadhaar numbers are highly sensitive biometric identifiers and should not be shared."
+      }
+    },
+    {
+      "id": 17,
+      "category": "PII_AADHAAR",
+      "type": "REAL_DATA",
+      "detector": "AADHAAR_DETECTOR",
+      "prompt": "My Aadhaar is 987654321098 for verification",
+      "evidence": "987654321098",
+      "expectedDetection": true,
+      "expectedAction": "BLOCK",
+      "validation": {
+        "format": "VALID_FORMAT",
+        "isTestValue": false,
+        "checksum": "VALID",
+        "reason": "Valid Aadhaar format without test patterns"
+      },
+      "decision": {
+        "status": "BLOCKED",
+        "severity": "CRITICAL",
+        "confidence": 0.96,
+        "explanation": "Real Aadhaar number detected. Aadhaar is a sensitive 12-digit biometric identifier issued by UIDAI. This is highly sensitive personally identifiable information that should never be shared in prompts."
+      }
+    },
+    {
+      "id": 18,
+      "category": "SECRET_PRIVATE_KEY",
+      "type": "FAKE_DATA",
+      "detector": "PRIVATE_KEY_DETECTOR",
+      "prompt": "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA2Z3qX2BTLS00...\n-----END RSA PRIVATE KEY-----",
+      "evidence": "RSA PRIVATE KEY",
+      "expectedDetection": true,
+      "expectedAction": "ALLOW",
+      "validation": {
+        "keyFormat": "PEM",
+        "keyType": "RSA",
+        "isExample": true,
+        "reason": "Truncated example key"
+      },
+      "decision": {
+        "status": "ALLOWED",
+        "severity": "MEDIUM",
+        "confidence": 0.85,
+        "explanation": "Example private key detected. This appears to be truncated documentation or example code. However, real private keys should never be shared as they grant complete access to systems."
+      }
+    },
+    {
+      "id": 19,
+      "category": "SECRET_PRIVATE_KEY",
+      "type": "REAL_DATA",
+      "detector": "PRIVATE_KEY_DETECTOR",
+      "prompt": "-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA4f5wg5l2hKsTeNem/V41fGnJm6gOdrj8ym3rFkEU/wT8RDtn\nSgFEZOQpHEgQ7JL3E3s5Y0FUwRjgSFQJKwhqhxCnB9QGvqbvC+tLV1FhTfSy7QWR\nPqT4VVrvfBK+rJR5ZCjVrxqVr5tKBqZNcTkYjd6Jh5qZ8LqN9nC9L3N4Q6+8H1C3\n-----END RSA PRIVATE KEY-----",
+      "evidence": "REAL RSA PRIVATE KEY",
+      "expectedDetection": true,
+      "expectedAction": "BLOCK",
+      "validation": {
+        "keyFormat": "PEM",
+        "keyType": "RSA",
+        "isExample": false,
+        "keyLength": 2048,
+        "reason": "Complete private key - can be used for access"
+      },
+      "decision": {
+        "status": "BLOCKED",
+        "severity": "CRITICAL",
+        "confidence": 0.99,
+        "explanation": "Real private key detected. This is a complete RSA private key that could grant unauthorized access to systems and data. Private keys should NEVER be shared in prompts, forums, or any non-secure channels."
+      }
+    },
+    {
+      "id": 20,
+      "category": "INJECTION_ATTACK",
+      "type": "ATTACK_PATTERN",
+      "detector": "INJECTION_DETECTOR",
+      "prompt": "Execute: ; rm -rf /",
+      "evidence": "; rm -rf /",
+      "expectedDetection": true,
+      "expectedAction": "BLOCK",
+      "validation": {
+        "attackType": "COMMAND_INJECTION",
+        "severity": "CRITICAL",
+        "pattern": "SHELL_METACHARACTER",
+        "reason": "Dangerous shell command"
+      },
+      "decision": {
+        "status": "BLOCKED",
+        "severity": "CRITICAL",
+        "confidence": 0.99,
+        "explanation": "Command injection attack pattern detected. This contains shell metacharacters (;) combined with dangerous commands (rm -rf). This is a deliberate attempt to inject malicious commands."
+      }
+    },
+    {
+      "id": 21,
+      "category": "SAFE_TEXT",
+      "type": "BENIGN",
+      "detector": "NONE",
+      "prompt": "Hello, I need help with my Python code.",
+      "evidence": "N/A",
+      "expectedDetection": false,
+      "expectedAction": "ALLOW",
+      "validation": {
+        "isClean": true,
+        "reason": "No sensitive data detected"
+      },
+      "decision": {
+        "status": "ALLOWED",
+        "severity": "NONE",
+        "confidence": 0.99,
+        "explanation": "No sensitive data detected. This is safe to send - contains only general question about programming."
+      }
+    }
+  ]
+}

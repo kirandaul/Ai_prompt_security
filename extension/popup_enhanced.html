@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cybage Prompt Detection</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            width: 450px;
+            max-height: 600px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+        }
+
+        .header {
+            background: white;
+            padding: 20px;
+            border-bottom: 2px solid #e0e0e0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .logo-icon {
+            font-size: 24px;
+        }
+
+        .logo-text h1 {
+            font-size: 16px;
+            font-weight: 700;
+            color: #333;
+            margin: 0;
+        }
+
+        .logo-text p {
+            font-size: 11px;
+            color: #999;
+            margin: 0;
+        }
+
+        .settings-btn {
+            background: #f0f0f0;
+            border: none;
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            transition: all 0.2s;
+        }
+
+        .settings-btn:hover {
+            background: #e0e0e0;
+        }
+
+        .content {
+            padding: 0;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .status-panel {
+            background: white;
+            padding: 20px;
+            text-align: center;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .status-icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+
+        .status-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+
+        .status-title.allowed {
+            color: #48bb78;
+        }
+
+        .status-title.blocked {
+            color: #f56565;
+        }
+
+        .status-subtitle {
+            font-size: 12px;
+            color: #999;
+        }
+
+        .decision-box {
+            background: #f8f9fa;
+            padding: 15px;
+            margin: 0;
+            border-left: 4px solid #667eea;
+        }
+
+        .decision-box.allowed {
+            border-left-color: #48bb78;
+        }
+
+        .decision-box.blocked {
+            border-left-color: #f56565;
+        }
+
+        .finding {
+            background: white;
+            padding: 15px 20px;
+            border-bottom: 1px solid #f0f0f0;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .finding:hover {
+            background: #f8f9fa;
+        }
+
+        .finding-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .detector-name {
+            font-weight: 600;
+            color: #333;
+            font-size: 13px;
+        }
+
+        .severity-badge {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .severity-low {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+
+        .severity-medium {
+            background: #feebc8;
+            color: #7c2d12;
+        }
+
+        .severity-high {
+            background: #fbd38d;
+            color: #7c2d12;
+        }
+
+        .severity-critical {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+
+        .finding-detail {
+            font-size: 12px;
+            color: #666;
+            line-height: 1.4;
+            margin-bottom: 8px;
+        }
+
+        .confidence-bar {
+            background: #e0e0e0;
+            height: 4px;
+            border-radius: 2px;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+
+        .confidence-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            transition: width 0.3s;
+        }
+
+        .validation-tags {
+            display: flex;
+            gap: 5px;
+            flex-wrap: wrap;
+            margin-bottom: 8px;
+        }
+
+        .validation-tag {
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 500;
+            background: #f0f0f0;
+            color: #666;
+        }
+
+        .validation-tag.test {
+            background: #bee3f8;
+            color: #2c5282;
+        }
+
+        .validation-tag.real {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+
+        .validation-tag.valid {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+
+        .validation-tag.invalid {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+
+        .reason-text {
+            background: #f0f4ff;
+            padding: 10px;
+            border-left: 3px solid #667eea;
+            border-radius: 4px;
+            font-size: 12px;
+            line-height: 1.5;
+            color: #333;
+            margin-top: 8px;
+        }
+
+        .evidence-box {
+            background: #f5f5f5;
+            padding: 8px;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 11px;
+            word-break: break-all;
+            color: #666;
+            max-height: 40px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .no-findings {
+            padding: 40px 20px;
+            text-align: center;
+            color: white;
+        }
+
+        .no-findings-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+
+        .no-findings-text {
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 5px;
+        }
+
+        .no-findings-sub {
+            font-size: 12px;
+            opacity: 0.8;
+        }
+
+        .footer {
+            background: white;
+            padding: 15px 20px;
+            border-top: 1px solid #f0f0f0;
+            font-size: 11px;
+            color: #999;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .footer-link {
+            color: #667eea;
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+        .footer-link:hover {
+            text-decoration: underline;
+        }
+
+        .summary-stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            padding: 15px 20px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 20px;
+            font-weight: 700;
+            color: #333;
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: #999;
+            text-transform: uppercase;
+            margin-top: 3px;
+        }
+
+        .collapsible {
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .collapsible-content {
+            display: none;
+            padding: 0 20px 15px;
+        }
+
+        .collapsible-content.expanded {
+            display: block;
+        }
+
+        .arrow {
+            display: inline-block;
+            transition: transform 0.2s;
+            margin-right: 5px;
+        }
+
+        .arrow.expanded {
+            transform: rotate(90deg);
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">
+            <div class="logo-icon">🔍</div>
+            <div class="logo-text">
+                <h1>Cybage Detection</h1>
+                <p>Sensitive Data Analysis</p>
+            </div>
+        </div>
+        <button class="settings-btn" id="debugBtn" title="Debug Log">📋</button>
+    </div>
+
+    <div class="content">
+        <div id="status-container">
+            <!-- Status will be inserted here -->
+        </div>
+
+        <div id="summary-container">
+            <!-- Summary stats will be inserted here -->
+        </div>
+
+        <div id="findings-container">
+            <!-- Findings will be inserted here -->
+        </div>
+    </div>
+
+    <div class="footer">
+        <span id="timeInfo"></span>
+        <a href="#" class="footer-link" id="learnMore">Learn more →</a>
+    </div>
+
+    <script src="popup_enhanced.js"></script>
+</body>
+</html>

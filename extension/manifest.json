@@ -26,13 +26,15 @@
         "https://*.claude.ai/*"
       ],
       "js": [
+        "js/critical_blocker.js",
+        "js/document_scanner.js",
         "detection.js",
         "content.js"
       ],
       "css": [
         "styles.css"
       ],
-      "run_at": "document_idle"
+      "run_at": "document_start"
     }
   ],
 

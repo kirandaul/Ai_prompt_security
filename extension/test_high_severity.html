@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HIGH Severity Blocking Test</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+        .container {
+            max-width: 700px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 12px;
+            font-size: 28px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        .info-box {
+            background: #eff6ff;
+            border: 2px solid #bfdbfe;
+            color: #1e40af;
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        .test-case {
+            background: #f9f9f9;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+        }
+        .test-case h2 {
+            color: #333;
+            font-size: 16px;
+            margin-bottom: 12px;
+        }
+        .response-code {
+            background: #272822;
+            color: #f8f8f2;
+            padding: 12px;
+            border-radius: 6px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+            margin-bottom: 12px;
+            line-height: 1.4;
+        }
+        .test-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        button {
+            flex: 1;
+            padding: 10px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-simulate {
+            background: #667eea;
+            color: white;
+        }
+        .btn-simulate:hover {
+            background: #5568d3;
+        }
+        .btn-send {
+            background: #48bb78;
+            color: white;
+        }
+        .btn-send:hover {
+            background: #38a169;
+        }
+        .btn-send:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+        .status-text {
+            margin-top: 12px;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .status-blocked {
+            background: #fff5f5;
+            color: #742a2a;
+            border: 1px solid #fca5a5;
+        }
+        .status-allowed {
+            background: #f0fdf4;
+            color: #22543d;
+            border: 1px solid #86efac;
+        }
+        .expected {
+            background: #f0f4f8;
+            padding: 10px 12px;
+            border-radius: 4px;
+            margin-top: 12px;
+            font-size: 12px;
+            color: #2d3748;
+            border-left: 3px solid #667eea;
+        }
+        code {
+            background: #edf2f7;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 HIGH Severity Blocking Test</h1>
+        <p class="subtitle">Test that PAN, Banking, and other HIGH severity data blocks submission</p>
+        
+        <div class="info-box">
+            <strong>✅ What This Tests:</strong>
+            <ul style="margin-left: 20px; margin-top: 8px;">
+                <li>Backend returns HIGH severity (not CRITICAL)</li>
+                <li>Blocker should still block the send button</li>
+                <li>User cannot submit - button disabled + popup shows on click</li>
+                <li>Ctrl+Enter and Shift+Enter also blocked</li>
+                <li>Works for PAN, Banking, API Keys, etc.</li>
+            </ul>
+        </div>
+
+        <!-- Test 1: PAN Number (HIGH) -->
+        <div class="test-case">
+            <h2>Test 1: PAN Number (HIGH Severity)</h2>
+            <div class="response-code">{
+  "severity": "HIGH",
+  "action": "BLOCK",
+  "findings": [
+    {
+      "severity": "HIGH",
+      "reason": "PAN Number",
+      "action": "BLOCK",
+      "evidence": "BT******6L"
+    }
+  ]
+}</div>
+            <div class="expected">
+                <strong>Expected:</strong> Send button DISABLED (opacity 0.5), cannot click/submit
+            </div>
+            <div class="test-buttons">
+                <button class="btn-simulate" onclick="testPAN()">📊 Simulate PAN Detection</button>
+                <button class="btn-send" id="send-pan" onclick="attemptSubmit('pan')">Send Message</button>
+            </div>
+            <div class="status-text status-allowed" id="status-pan">Status: Ready</div>
+        </div>
+
+        <!-- Test 2: Banking Details (HIGH) -->
+        <div class="test-case">
+            <h2>Test 2: Banking Details (HIGH Severity)</h2>
+            <div class="response-code">{
+  "severity": "HIGH",
+  "action": "BLOCK",
+  "findings": [
+    {
+      "severity": "HIGH",
+      "reason": "Banking Information",
+      "action": "BLOCK",
+      "evidence": "Account: 9876543210"
+    }
+  ]
+}</div>
+            <div class="expected">
+                <strong>Expected:</strong> Send button DISABLED, popup on click attempt
+            </div>
+            <div class="test-buttons">
+                <button class="btn-simulate" onclick="testBanking()">📊 Simulate Banking Detection</button>
+                <button class="btn-send" id="send-banking" onclick="attemptSubmit('banking')">Send Message</button>
+            </div>
+            <div class="status-text status-allowed" id="status-banking">Status: Ready</div>
+        </div>
+
+        <!-- Test 3: Multiple HIGH Issues -->
+        <div class="test-case">
+            <h2>Test 3: Multiple HIGH Issues</h2>
+            <div class="response-code">{
+  "severity": "HIGH",
+  "action": "BLOCK",
+  "findings": [
+    {
+      "severity": "HIGH",
+      "reason": "PAN Number",
+      "action": "BLOCK"
+    },
+    {
+      "severity": "HIGH",
+      "reason": "Banking Information",
+      "action": "BLOCK"
+    }
+  ]
+}</div>
+            <div class="expected">
+                <strong>Expected:</strong> Multiple issues listed in popup
+            </div>
+            <div class="test-buttons">
+                <button class="btn-simulate" onclick="testMultiple()">📊 Simulate Multiple Findings</button>
+                <button class="btn-send" id="send-multiple" onclick="attemptSubmit('multiple')">Send Message</button>
+            </div>
+            <div class="status-text status-allowed" id="status-multiple">Status: Ready</div>
+        </div>
+
+        <!-- Test 4: Safe Data (LOW/MEDIUM) -->
+        <div class="test-case">
+            <h2>Test 4: Safe Data (Should Allow)</h2>
+            <div class="response-code">{
+  "severity": "LOW",
+  "action": "ALLOW",
+  "findings": []
+}</div>
+            <div class="expected">
+                <strong>Expected:</strong> Send button ENABLED (opacity 1.0), can click normally
+            </div>
+            <div class="test-buttons">
+                <button class="btn-simulate" onclick="testSafe()">📊 Simulate Safe Data</button>
+                <button class="btn-send" id="send-safe" onclick="attemptSubmit('safe')">Send Message</button>
+            </div>
+            <div class="status-text status-allowed" id="status-safe">Status: Ready</div>
+        </div>
+
+        <!-- Test 5: Test Enter Key Blocking -->
+        <div class="test-case">
+            <h2>Test 5: Enter Key Blocking</h2>
+            <div class="expected">
+                <strong>Instructions:</strong>
+                <ol style="margin-left: 20px; margin-top: 8px;">
+                    <li>Click "Simulate PAN Detection" first</li>
+                    <li>Click in the textarea below</li>
+                    <li>Try pressing <code>Ctrl+Enter</code> (or <code>Cmd+Enter</code> on Mac)</li>
+                    <li>Popup should appear: "You can't submit like that"</li>
+                </ol>
+            </div>
+            <textarea id="test-textarea" 
+                      style="width: 100%; height: 80px; padding: 10px; border: 2px solid #ddd; border-radius: 6px; margin-top: 12px; font-family: monospace;"
+                      placeholder="Click here, then press Ctrl+Enter..."></textarea>
+            <button class="btn-simulate" style="margin-top: 12px; width: 100%;" onclick="testPAN()">📊 Activate Blocking First</button>
+        </div>
+    </div>
+
+    <script src="js/critical_blocker.js"></script>
+    <script>
+        function setBlocked(testId, blocked, findings = []) {
+            const status = document.getElementById(`status-${testId}`);
+            const button = document.getElementById(`send-${testId}`);
+            
+            if (blocked) {
+                status.className = 'status-text status-blocked';
+                status.innerHTML = `🛑 BLOCKED - ${findings.map(f => f.reason).join(', ')}`;
+                button.disabled = true;
+                button.style.opacity = '0.5';
+            } else {
+                status.className = 'status-text status-allowed';
+                status.textContent = '✅ ALLOWED - Button enabled, can submit';
+                button.disabled = false;
+                button.style.opacity = '1';
+            }
+        }
+
+        function testPAN() {
+            const panResponse = {
+                severity: "HIGH",
+                action: "BLOCK",
+                findings: [
+                    {
+                        severity: "HIGH",
+                        reason: "PAN Number",
+                        action: "BLOCK",
+                        evidence: "BT******6L",
+                        category: "PII"
+                    }
+                ]
+            };
+            
+            window.__psgLastScanResult = panResponse;
+            window.__psgLastPrompt = "my pan card number is BT123456L";
+            
+            setBlocked('pan', true, panResponse.findings);
+            console.log('✅ PAN detection simulated');
+        }
+
+        function testBanking() {
+            const bankingResponse = {
+                severity: "HIGH",
+                action: "BLOCK",
+                findings: [
+                    {
+                        severity: "HIGH",
+                        reason: "Banking Information",
+                        action: "BLOCK",
+                        evidence: "Account: 9876543210",
+                        category: "BANKING"
+                    }
+                ]
+            };
+            
+            window.__psgLastScanResult = bankingResponse;
+            window.__psgLastPrompt = "my account number is 9876543210";
+            
+            setBlocked('banking', true, bankingResponse.findings);
+            console.log('✅ Banking detection simulated');
+        }
+
+        function testMultiple() {
+            const multiResponse = {
+                severity: "HIGH",
+                action: "BLOCK",
+                findings: [
+                    {
+                        severity: "HIGH",
+                        reason: "PAN Number",
+                        action: "BLOCK",
+                        evidence: "BT123456L"
+                    },
+                    {
+                        severity: "HIGH",
+                        reason: "Banking Information",
+                        action: "BLOCK",
+                        evidence: "Account: 123456"
+                    }
+                ]
+            };
+            
+            window.__psgLastScanResult = multiResponse;
+            window.__psgLastPrompt = "PAN: BT123456L and Account: 123456";
+            
+            setBlocked('multiple', true, multiResponse.findings);
+            console.log('✅ Multiple findings simulated');
+        }
+
+        function testSafe() {
+            const safeResponse = {
+                severity: "LOW",
+                action: "ALLOW",
+                findings: []
+            };
+            
+            window.__psgLastScanResult = safeResponse;
+            window.__psgLastPrompt = "Hello, how can I learn Python?";
+            
+            setBlocked('safe', false, []);
+            console.log('✅ Safe data simulated');
+        }
+
+        function attemptSubmit(testId) {
+            alert(`⚠️ Button should be disabled!\n\nThe "You can't submit" popup should have appeared when you clicked this button.\n\nIf it didn't:\n1. Check browser console for errors\n2. Make sure critical_blocker.js loaded\n3. Try clicking "Simulate Detection" again`);
+        }
+
+        // Log when page loads
+        window.addEventListener('load', () => {
+            console.log('✅ Test page loaded');
+            console.log('Critical Blocker:', window.criticalBlocker ? '✅ Initialized' : '❌ Not found');
+            
+            // Add keyboard event for Enter key test
+            document.getElementById('test-textarea')?.addEventListener('keydown', (e) => {
+                if ((e.key === 'Enter' && e.ctrlKey) || (e.key === 'Enter' && e.metaKey)) {
+                    console.log('🔒 Enter key intercepted correctly');
+                }
+            });
+        });
+    </script>
+</body>
+</html>

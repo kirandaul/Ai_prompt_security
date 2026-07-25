@@ -308,12 +308,15 @@
     let lastTextResult = { findings: [], sanitized: null, originalText: '' };
     let imageFindings = []; // findings from the last scanned image (if sensitive)
 
-    // Merge the current text findings with any image findings into ONE panel.
     const renderCombined = () => {
         const combined = buildResult([...(lastTextResult.findings || []), ...imageFindings]);
         combined.sanitized = lastTextResult.sanitized || null;
         combined.originalText = lastTextResult.originalText || '';
         ui.updatePanel(combined);
+        
+        // NEW: Set global flags for critical blocker to detect CRITICAL severity
+        window.__psgLastScanResult = combined;
+        window.__psgLastPrompt = lastTextResult.originalText || '';
     };
 
     const scanAndUpdate = async () => {

@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Critical Blocker Test</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            padding: 40px 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 24px;
+            font-size: 24px;
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        .test-section h2 {
+            color: #333;
+            font-size: 16px;
+            margin-bottom: 12px;
+        }
+        textarea {
+            width: 100%;
+            height: 100px;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 13px;
+            resize: vertical;
+            margin-bottom: 12px;
+        }
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            width: 100%;
+        }
+        .btn-test {
+            background: #667eea;
+            color: white;
+        }
+        .btn-test:hover {
+            background: #5568d3;
+        }
+        .btn-test:active {
+            transform: scale(0.98);
+        }
+        .btn-test:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+        .status {
+            margin-top: 12px;
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+        }
+        .status.safe {
+            background: #f0fdf4;
+            color: #22543d;
+            border: 1px solid #86efac;
+        }
+        .status.blocked {
+            background: #fff5f5;
+            color: #742a2a;
+            border: 1px solid #fca5a5;
+        }
+        .info {
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            color: #1e40af;
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔒 Critical Blocker Test</h1>
+        
+        <div class="info">
+            <strong>ℹ️ Test Instructions:</strong>
+            <ul style="margin-left: 20px; margin-top: 8px;">
+                <li>Type or paste test data below</li>
+                <li>When CRITICAL data is detected, the send button will be disabled</li>
+                <li>Clicking the disabled button shows "You can't submit like that" popup</li>
+                <li>Remove the sensitive data to re-enable the button</li>
+            </ul>
+        </div>
+
+        <!-- Test 1: Credit Card -->
+        <div class="test-section">
+            <h2>Test 1: Credit Card Detection</h2>
+            <textarea id="test-cc" placeholder="Type or paste a credit card number here...">4111111111111111</textarea>
+            <button class="btn-test" id="send-cc" onclick="testSubmit('cc')">Send Test</button>
+            <div class="status blocked" id="status-cc">Status: Ready to test</div>
+        </div>
+
+        <!-- Test 2: API Key -->
+        <div class="test-section">
+            <h2>Test 2: API Key Detection</h2>
+            <textarea id="test-api" placeholder="Type or paste an API key here...">sk-proj-1234567890abcdefghijklmnopqrstuv</textarea>
+            <button class="btn-test" id="send-api" onclick="testSubmit('api')">Send Test</button>
+            <div class="status blocked" id="status-api">Status: Ready to test</div>
+        </div>
+
+        <!-- Test 3: Safe Data -->
+        <div class="test-section">
+            <h2>Test 3: Safe Data (Should Allow)</h2>
+            <textarea id="test-safe" placeholder="Type or paste safe data here...">Hello, can you help me with Python?</textarea>
+            <button class="btn-test" id="send-safe" onclick="testSubmit('safe')">Send Test</button>
+            <div class="status safe" id="status-safe">Status: Ready to test</div>
+        </div>
+
+        <!-- Test 4: Custom -->
+        <div class="test-section">
+            <h2>Test 4: Custom Test</h2>
+            <textarea id="test-custom" placeholder="Enter your own test data here..."></textarea>
+            <button class="btn-test" id="send-custom" onclick="testSubmit('custom')">Send Test</button>
+            <div class="status safe" id="status-custom">Status: Ready to test</div>
+        </div>
+    </div>
+
+    <script src="js/critical_blocker.js"></script>
+    <script>
+        function testSubmit(testType) {
+            const buttonMap = {
+                'cc': 'send-cc',
+                'api': 'send-api',
+                'safe': 'send-safe',
+                'custom': 'send-custom'
+            };
+            
+            const textareaMap = {
+                'cc': 'test-cc',
+                'api': 'test-api',
+                'safe': 'test-safe',
+                'custom': 'test-custom'
+            };
+
+            const button = document.getElementById(buttonMap[testType]);
+            const textarea = document.getElementById(textareaMap[testType]);
+            
+            // Simulate scan result
+            const prompt = textarea.value;
+            
+            // Simple mock detector
+            let findings = [];
+            
+            if (/^\d{13,19}$/.test(prompt.replace(/\s|-/g, ''))) {
+                // Credit card pattern
+                findings.push({
+                    detector: 'CREDIT_CARD_DETECTOR',
+                    severity: 95,
+                    evidence: prompt.substring(0, 16),
+                    decision: { reason: 'Valid card pattern detected' }
+                });
+            } else if (/sk-proj-[a-zA-Z0-9]{32,}/.test(prompt)) {
+                // OpenAI key pattern
+                findings.push({
+                    detector: 'API_KEY_DETECTOR',
+                    severity: 90,
+                    evidence: prompt.substring(0, 20) + '...',
+                    decision: { reason: 'API key format detected' }
+                });
+            }
+            
+            // Update global window object for blocker
+            window.__psgLastScanResult = {
+                findings: findings,
+                severity: findings.length > 0 ? 'CRITICAL' : 'SAFE'
+            };
+            window.__psgLastPrompt = prompt;
+            
+            console.log('Test triggered:', testType, 'Findings:', findings);
+            
+            // Update UI
+            const statusEl = document.getElementById(`status-${testType}`);
+            if (findings.length > 0) {
+                statusEl.className = 'status blocked';
+                statusEl.textContent = `Status: BLOCKED - ${findings[0].detector}`;
+                button.disabled = true;
+            } else {
+                statusEl.className = 'status safe';
+                statusEl.textContent = 'Status: SAFE - Ready to submit';
+                button.disabled = false;
+            }
+        }
+
+        // Test on load
+        window.addEventListener('load', () => {
+            console.log('✅ Test page loaded');
+            console.log('Critical Blocker instance:', window.criticalBlocker);
+        });
+    </script>
+</body>
+</html>
