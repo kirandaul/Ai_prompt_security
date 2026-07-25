@@ -448,6 +448,7 @@ async def api_scan_image(body: ImageScanRequest, http: Request):
             redacted_prompt="[image] " + redact(text, rawf),
             ip=ip,
             user_agent=body.user_agent or http.headers.get("user-agent"),
+            scan_type="image",
         )
     except Exception:
         pass
@@ -700,6 +701,32 @@ async def api_scan_document(body: DocumentScanRequest, http: Request):
             filename=body.filename,
             document_type=body.document_type
         )
+        
+        # Log the document scan
+        try:
+            findings = result.get("findings", [])
+            metadata_findings = result.get("metadata_findings", [])
+            all_findings = findings + metadata_findings
+            
+            ip = None
+            if http.client:
+                ip = http.headers.get("x-forwarded-for", http.client.host).split(",")[0].strip()
+            
+            storage.log_scan(
+                client_id=body.client_id,
+                source=(body.source or "") + " [document]",
+                severity=result.get("severity", "LOW"),
+                action=result.get("action", "ALLOW"),
+                allow_send=(result.get("action", "ALLOW") == "ALLOW"),
+                findings_count=len(all_findings),
+                categories=sorted({f.get("reason", "Unknown") for f in all_findings}),
+                redacted_prompt=f"[document] {body.filename}: {result.get('document_info', {}).get('file_type', 'unknown')} - {len(all_findings)} findings",
+                ip=ip,
+                user_agent=http.headers.get("user-agent"),
+                scan_type="document",
+            )
+        except Exception as log_err:
+            print(f"Failed to log document scan: {log_err}")
         
         return result
         

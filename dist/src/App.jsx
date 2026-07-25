@@ -3,7 +3,7 @@ import * as API from './api.js'
 import { Donut, AreaChart, HBars } from './charts.jsx'
 
 const nf = (n) => (n == null ? '—' : Number(n).toLocaleString())
-const EMPTY_FILTERS = { severity: '', source: '', client_id: '', date_from: '', date_to: '', search: '' }
+const EMPTY_FILTERS = { severity: '', source: '', client_id: '', date_from: '', date_to: '', search: '', scan_type: '' }
 
 export default function App() {
   const [user, setUser] = useState(null)
@@ -245,6 +245,14 @@ function Filters({ filters, setFilters, onApply, onReset }) {
   const set = (k) => (e) => setFilters({ ...filters, [k]: e.target.value })
   return (
     <div className="filters">
+      <Field label="Scan Type">
+        <select value={filters.scan_type} onChange={set('scan_type')}>
+          <option value="">All</option>
+          <option>text</option>
+          <option>image</option>
+          <option>document</option>
+        </select>
+      </Field>
       <Field label="Severity">
         <select value={filters.severity} onChange={set('severity')}>
           <option value="">All</option>
@@ -283,7 +291,7 @@ function LogsTable({ logs }) {
       <table>
         <thead>
           <tr>
-            <th>Time (UTC)</th><th>Client</th><th>Host / IP</th><th>Source</th><th>Severity</th>
+            <th>Time (UTC)</th><th>Type</th><th>Client</th><th>Host / IP</th><th>Source</th><th>Severity</th>
             <th>Categories</th><th>Redacted Prompt</th><th>Action</th>
           </tr>
         </thead>
@@ -291,6 +299,7 @@ function LogsTable({ logs }) {
           {logs.map((L) => (
             <tr key={L.id}>
               <td>{(L.created_at || '').replace('T', ' ').replace('+00:00', '')}</td>
+              <td><span className="type-badge">{L.scan_type || 'text'}</span></td>
               <td className="mono">{L.client_id || '—'}</td>
               <td className="mono" title={L.user_agent || ''}>{L.ip || '—'}</td>
               <td>{L.source || '—'}</td>

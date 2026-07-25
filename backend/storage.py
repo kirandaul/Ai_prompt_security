@@ -49,15 +49,18 @@ def init_db() -> None:
                 categories      TEXT,
                 redacted_prompt TEXT,
                 ip              TEXT,
-                user_agent      TEXT
+                user_agent      TEXT,
+                scan_type       TEXT DEFAULT 'text'
             )
             """
         )
         # Lightweight migration: add new columns if an older DB predates them.
         existing = {r["name"] for r in conn.execute("PRAGMA table_info(scans)")}
-        for col in ("ip", "user_agent"):
+        for col in ("ip", "user_agent", "scan_type"):
             if col not in existing:
                 conn.execute(f"ALTER TABLE scans ADD COLUMN {col} TEXT")
+                if col == "scan_type":
+                    conn.execute("UPDATE scans SET scan_type = 'text' WHERE scan_type IS NULL")
 
         # --- accuracy benchmark tables (separate from the live audit log) ---
         conn.execute(
@@ -188,6 +191,7 @@ def log_scan(
     redacted_prompt: str,
     ip: Optional[str] = None,
     user_agent: Optional[str] = None,
+    scan_type: str = "text",
 ) -> None:
     with _lock:
         conn = _connect()
@@ -195,8 +199,8 @@ def log_scan(
             """
             INSERT INTO scans (created_at, client_id, source, severity, action,
                                allow_send, findings_count, categories, redacted_prompt,
-                               ip, user_agent)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                               ip, user_agent, scan_type)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -210,6 +214,7 @@ def log_scan(
                 redacted_prompt if STORE_PROMPTS else None,
                 ip,
                 user_agent,
+                scan_type,
             ),
         )
         conn.commit()

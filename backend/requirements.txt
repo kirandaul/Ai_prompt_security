@@ -14,5 +14,5 @@ detect-secrets>=1.5
 # Document parsing - PDF, Word, Excel, CSV
 pypdf>=4.0.1
 python-docx>=0.8.11
-openpyxl>=3.11.2
+openpyxl>=3.0.0
 chardet>=5.2.0
