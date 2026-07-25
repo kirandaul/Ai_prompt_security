@@ -1,0 +1,46 @@
+{
+  "manifest_version": 3,
+  "name": "Prompt Security Gateway",
+  "version": "1.1.0",
+  "description": "Detects and blocks sensitive information in AI chat prompts before they are sent.",
+
+  "permissions": [
+    "storage"
+  ],
+
+  "host_permissions": [
+    "https://chatgpt.com/*",
+    "https://*.openai.com/*",
+    "https://claude.ai/*",
+    "https://*.claude.ai/*",
+    "http://127.0.0.1:3000/*",
+    "http://localhost:3000/*"
+  ],
+
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://*.openai.com/*",
+        "https://claude.ai/*",
+        "https://*.claude.ai/*"
+      ],
+      "js": [
+        "detection.js",
+        "content.js"
+      ],
+      "css": [
+        "styles.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+
+  "background": {
+    "service_worker": "background.js"
+  },
+
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; base-uri 'self'"
+  }
+}

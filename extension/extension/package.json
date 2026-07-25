@@ -1,0 +1,13 @@
+{
+  "name": "prompt-security-gateway",
+  "version": "1.1.0",
+  "private": true,
+  "description": "Chrome extension that detects sensitive information in AI chat prompts.",
+  "scripts": {
+    "test": "node --test",
+    "obfuscate": "node build.js"
+  },
+  "devDependencies": {
+    "javascript-obfuscator": "^4.1.1"
+  }
+}

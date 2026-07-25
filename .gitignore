@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+venv/
+.venv/
+
+# Environment files
+.env
+.env.*
+
+# Database files
+*.db
+*.db-wal
+*.db-shm
+
+# Logs
+*.log
+
+# Python cache
+.pytest_cache/
+.mypy_cache/
+
+# Node
+node_modules/
+
+# VS Code
+.vscode/
+
+# IntelliJ
+.idea/
+
+# Windows
+Thumbs.db
+
+# macOS
+.DS_Store
