@@ -26,6 +26,21 @@
     transition: filter 0.15s;
 }
 .psg-fix-btn:hover { filter: brightness(1.08); }
+
+.psg-add-key-btn {
+    margin-top: 12px;
+    width: 100%;
+    padding: 9px 12px;
+    border: 0;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #059669, #10b981);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: filter 0.15s;
+}
+.psg-add-key-btn:hover { filter: brightness(1.08); }
  
 .psg-fixed-panel {
     position: fixed !important;

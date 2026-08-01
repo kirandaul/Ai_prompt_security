@@ -49,18 +49,18 @@ def init_db() -> None:
                 categories      TEXT,
                 redacted_prompt TEXT,
                 ip              TEXT,
+                hostname        TEXT,
                 user_agent      TEXT,
-                scan_type       TEXT DEFAULT 'text'
+                scan_type       TEXT DEFAULT 'text',
+                activation_key  TEXT
             )
             """
         )
         # Lightweight migration: add new columns if an older DB predates them.
         existing = {r["name"] for r in conn.execute("PRAGMA table_info(scans)")}
-        for col in ("ip", "user_agent", "scan_type"):
+        for col in ("ip", "user_agent", "scan_type", "hostname", "activation_key"):
             if col not in existing:
                 conn.execute(f"ALTER TABLE scans ADD COLUMN {col} TEXT")
-                if col == "scan_type":
-                    conn.execute("UPDATE scans SET scan_type = 'text' WHERE scan_type IS NULL")
 
         # --- accuracy benchmark tables (separate from the live audit log) ---
         conn.execute(
@@ -90,6 +90,45 @@ def init_db() -> None:
             """
         )
         conn.execute("CREATE INDEX IF NOT EXISTS idx_bcase_run ON benchmark_cases(run_id, outcome)")
+        
+        # --- Extension activation keys ---
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS activation_keys (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at      TEXT    NOT NULL,
+                key             TEXT    UNIQUE NOT NULL,
+                extension_id    TEXT    NOT NULL,
+                hostname        TEXT,
+                user_agent      TEXT,
+                is_active       INTEGER DEFAULT 1,
+                last_used       TEXT,
+                expires_at      TEXT
+            )
+            """
+        )
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_akey_key ON activation_keys(key)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_akey_ext ON activation_keys(extension_id)")
+        
+        # Migration: add activation_keys table if missing
+        existing = {r["name"] for r in conn.execute("PRAGMA table_info(activation_keys)")}
+        if not existing:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS activation_keys (
+                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                    created_at      TEXT    NOT NULL,
+                    key             TEXT    UNIQUE NOT NULL,
+                    extension_id    TEXT    NOT NULL,
+                    hostname        TEXT,
+                    user_agent      TEXT,
+                    is_active       INTEGER DEFAULT 1,
+                    last_used       TEXT,
+                    expires_at      TEXT
+                )
+                """
+            )
+        
         conn.commit()
 
 
@@ -190,8 +229,10 @@ def log_scan(
     categories: List[str],
     redacted_prompt: str,
     ip: Optional[str] = None,
+    hostname: Optional[str] = None,
     user_agent: Optional[str] = None,
     scan_type: str = "text",
+    activation_key: Optional[str] = None,
 ) -> None:
     with _lock:
         conn = _connect()
@@ -199,8 +240,8 @@ def log_scan(
             """
             INSERT INTO scans (created_at, client_id, source, severity, action,
                                allow_send, findings_count, categories, redacted_prompt,
-                               ip, user_agent, scan_type)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                               ip, hostname, user_agent, scan_type, activation_key)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -213,8 +254,10 @@ def log_scan(
                 json.dumps(categories),
                 redacted_prompt if STORE_PROMPTS else None,
                 ip,
+                hostname,
                 user_agent,
                 scan_type,
+                activation_key,
             ),
         )
         conn.commit()
@@ -340,18 +383,18 @@ def top_clients(limit: int = 8) -> list:
         conn = _connect()
         rows = conn.execute(
             """
-            SELECT client_id,
+            SELECT hostname,
                    COUNT(*) AS scans,
                    SUM(CASE WHEN allow_send = 0 THEN 1 ELSE 0 END) AS blocked
             FROM scans
-            GROUP BY client_id
+            GROUP BY hostname
             ORDER BY blocked DESC, scans DESC
             LIMIT ?
             """,
             (limit,),
         ).fetchall()
     return [
-        {"client_id": r["client_id"] or "unknown", "scans": r["scans"], "blocked": r["blocked"] or 0}
+        {"hostname": r["hostname"] or "unknown", "scans": r["scans"], "blocked": r["blocked"] or 0}
         for r in rows
     ]
 
@@ -402,3 +445,200 @@ def query_logs(
             d["categories"] = []
         logs.append(d)
     return {"total": total, "count": len(logs), "logs": logs}
+
+
+# ---------------------------------------------------------------------------
+# Extension Activation Keys
+# ---------------------------------------------------------------------------
+
+import secrets
+import hashlib
+
+
+def generate_activation_key(extension_id: str, hostname: Optional[str] = None, user_agent: Optional[str] = None) -> str:
+    """Generate a unique activation key for an extension."""
+    with _lock:
+        conn = _connect()
+        # Generate a secure random key (32 bytes = 64 hex chars)
+        key = secrets.token_hex(32)
+        
+        try:
+            conn.execute(
+                """
+                INSERT INTO activation_keys (created_at, key, extension_id, hostname, user_agent, is_active)
+                VALUES (?, ?, ?, ?, ?, 1)
+                """,
+                (
+                    datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                    key,
+                    extension_id,
+                    hostname,
+                    user_agent,
+                )
+            )
+            conn.commit()
+            return key
+        except sqlite3.IntegrityError:
+            # Key collision (extremely rare), retry
+            return generate_activation_key(extension_id, hostname, user_agent)
+
+
+def validate_activation_key(key: str) -> dict | None:
+    """Validate an activation key and return key info if valid."""
+    with _lock:
+        conn = _connect()
+        row = conn.execute(
+            """
+            SELECT * FROM activation_keys 
+            WHERE key = ? AND is_active = 1
+            """,
+            (key,)
+        ).fetchone()
+        
+        if not row:
+            return None
+        
+        # Update last_used timestamp
+        conn.execute(
+            "UPDATE activation_keys SET last_used = ? WHERE key = ?",
+            (datetime.now(timezone.utc).isoformat(timespec="seconds"), key)
+        )
+        conn.commit()
+        
+        return dict(row)
+
+
+def deactivate_key(key: str) -> bool:
+    """Deactivate an activation key."""
+    with _lock:
+        conn = _connect()
+        cursor = conn.execute(
+            "UPDATE activation_keys SET is_active = 0 WHERE key = ?",
+            (key,)
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+
+
+def get_keys_by_extension(extension_id: str) -> List[dict]:
+    """Get all keys for an extension."""
+    with _lock:
+        conn = _connect()
+        rows = conn.execute(
+            """
+            SELECT * FROM activation_keys 
+            WHERE extension_id = ? 
+            ORDER BY created_at DESC
+            """,
+            (extension_id,)
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_all_activation_keys(limit: int = 100) -> List[dict]:
+    """Get all activation keys with full details."""
+    with _lock:
+        conn = _connect()
+        rows = conn.execute(
+            """
+            SELECT id, created_at, key, extension_id, hostname, user_agent, 
+                   is_active, last_used, expires_at
+            FROM activation_keys 
+            ORDER BY created_at DESC
+            LIMIT ?
+            """,
+            (limit,)
+        ).fetchall()
+    
+    keys = []
+    for r in rows:
+        keys.append({
+            "id": r["id"],
+            "key": r["key"],
+            "key_short": r["key"][:16] + "..." if r["key"] else "",
+            "extension_id": r["extension_id"],
+            "hostname": r["hostname"],
+            "created_at": r["created_at"],
+            "last_used": r["last_used"],
+            "is_active": bool(r["is_active"]),
+            "status": "🟢 Active" if r["is_active"] else "🔴 Inactive",
+            "user_agent": r["user_agent"][:50] if r["user_agent"] else "N/A",
+            "expires_at": r["expires_at"]
+        })
+    return keys
+
+
+def reactivate_key(key: str) -> bool:
+    """Reactivate a deactivated key."""
+    with _lock:
+        conn = _connect()
+        cursor = conn.execute(
+            "UPDATE activation_keys SET is_active = 1 WHERE key = ?",
+            (key,)
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+
+
+def delete_key(key: str) -> bool:
+    """Delete an activation key."""
+    with _lock:
+        conn = _connect()
+        cursor = conn.execute(
+            "DELETE FROM activation_keys WHERE key = ?",
+            (key,)
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+
+
+def get_key_usage(key: str) -> dict:
+    """Get usage statistics for a specific activation key.
+    
+    Shows all scans that used THIS SPECIFIC KEY.
+    Returns which hostnames/people used it and how many times.
+    """
+    with _lock:
+        conn = _connect()
+        
+        # Verify key exists
+        key_info = conn.execute(
+            "SELECT created_at FROM activation_keys WHERE key = ?",
+            (key,)
+        ).fetchone()
+        
+        if not key_info:
+            return None
+        
+        # Get all scans that used THIS SPECIFIC KEY
+        rows = conn.execute(
+            """
+            SELECT DISTINCT hostname, COUNT(*) as count, MAX(created_at) as last_used
+            FROM scans
+            WHERE activation_key = ?
+            GROUP BY hostname
+            ORDER BY count DESC
+            """,
+            (key,)
+        ).fetchall()
+        
+        hostnames = [
+            {
+                "hostname": r["hostname"] or "unknown",
+                "count": r["count"],
+                "last_used": r["last_used"]
+            }
+            for r in rows
+        ]
+        
+        total_requests = sum(h["count"] for h in hostnames)
+        first_used = key_info["created_at"]
+        last_used = max([h["last_used"] for h in hostnames], default=None)
+        
+        return {
+            "key": key[:8] + "..." + key[-4:],
+            "total_requests": total_requests,
+            "hostnames": hostnames,
+            "first_used": first_used,
+            "last_used": last_used
+        }

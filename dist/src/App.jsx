@@ -150,11 +150,13 @@ function Dashboard({ user, onLogout }) {
         </div>
         <div className="card">
           <h3>Top Clients <span>· by blocks</span></h3>
-          <HBars data={(data?.top_clients || []).map((c) => [c.client_id.slice(0, 16), c.blocked])} />
+          <HBars data={(data?.top_clients || []).map((c) => [c.hostname || 'unknown', c.blocked])} />
         </div>
       </div>
 
       <Accuracy bench={bench} />
+
+      <ActivationKeysPanel />
 
       <Filters filters={filters} setFilters={setFilters} onApply={() => loadLogs(filters)}
                onReset={() => { setFilters(EMPTY_FILTERS); loadLogs(EMPTY_FILTERS) }} />
@@ -203,30 +205,7 @@ function Accuracy({ bench }) {
         </div>
       </div>
 
-      {wrong.length > 0 && (
-        <div className="card" style={{ padding: '6px 6px 2px', marginTop: 16 }}>
-          <table>
-            <thead>
-              <tr><th>Outcome</th><th>Category</th><th>Test prompt</th><th>Detected as</th><th>Risk</th></tr>
-            </thead>
-            <tbody>
-              {wrong.map((c) => (
-                <tr key={c.id}>
-                  <td>
-                    <span className={'badge ' + (c.outcome === 'FN' ? 'sev-CRITICAL' : 'sev-MEDIUM')}>
-                      {c.outcome === 'FN' ? 'MISSED' : 'FALSE ALARM'}
-                    </span>
-                  </td>
-                  <td className="mono">{c.category}</td>
-                  <td className="mono" title={c.prompt}>{c.prompt}</td>
-                  <td>{(c.findings || []).join(', ') || '—'}</td>
-                  <td>{c.risk_score}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+
     </div>
   )
 }
@@ -285,28 +264,300 @@ function Field({ label, children }) {
   )
 }
 
+function ActivationKeysPanel() {
+  const [keys, setKeys] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [hostname, setHostname] = useState('')
+  const [copiedKey, setCopiedKey] = useState(null)
+  const [usagePopup, setUsagePopup] = useState(null)
+  const [usageLoading, setUsageLoading] = useState(false)
+
+  // Load keys when component mounts
+  useEffect(() => {
+    loadKeys()
+  }, [])
+
+  const loadKeys = async () => {
+    setLoading(true)
+    try {
+      const r = await fetch('/api/admin/activation-keys')
+      const data = await r.json()
+      setKeys(data.keys || [])
+    } catch (e) {
+      console.error('Failed to load keys:', e)
+    }
+    setLoading(false)
+  }
+
+  const copyToClipboard = (key) => {
+    navigator.clipboard.writeText(key).then(() => {
+      setCopiedKey(key)
+      setTimeout(() => setCopiedKey(null), 2000)
+    })
+  }
+
+  const showKeyUsage = async (key) => {
+    setUsageLoading(true)
+    try {
+      const r = await fetch(`/api/admin/key-usage/${encodeURIComponent(key)}`)
+      const data = await r.json()
+      if (data.status === 'success') {
+        setUsagePopup(data.usage)
+      } else {
+        alert(`❌ Error: ${data.message}`)
+      }
+    } catch (e) {
+      alert(`❌ Failed: ${e.message}`)
+    }
+    setUsageLoading(false)
+  }
+
+  const generateKey = async () => {
+    try {
+      const r = await fetch('/api/admin/generate-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hostname: hostname || 'extension' })
+      })
+      const data = await r.json()
+      if (data.status === 'success') {
+        const message = `✅ Key Generated!\n\nKey:\n${data.key}\n\nExtension ID:\n${data.extension_id}\n\nClick OK to copy key to clipboard.`
+        alert(message)
+        copyToClipboard(data.key)
+        setHostname('')
+        loadKeys()
+      } else {
+        alert(`❌ Error: ${data.message}`)
+      }
+    } catch (e) {
+      alert(`❌ Failed: ${e.message}`)
+    }
+  }
+
+  const toggleKey = async (key, isActive) => {
+    try {
+      const endpoint = isActive ? '/api/admin/deactivate-key' : '/api/admin/activate-key'
+      const r = await fetch(endpoint + `?key=${encodeURIComponent(key)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+      const data = await r.json()
+      if (data.status === 'success') {
+        loadKeys()
+      } else {
+        alert(`❌ Error: ${data.message}`)
+      }
+    } catch (e) {
+      alert(`❌ Failed: ${e.message}`)
+    }
+  }
+
+  const deleteKey = async (key) => {
+    if (!confirm(`Delete key ${key.substring(0, 16)}...?`)) return
+    try {
+      const r = await fetch(`/api/admin/delete-key?key=${encodeURIComponent(key)}`, {
+        method: 'DELETE'
+      })
+      const data = await r.json()
+      if (data.status === 'success') {
+        loadKeys()
+      } else {
+        alert(`❌ Error: ${data.message}`)
+      }
+    } catch (e) {
+      alert(`❌ Failed: ${e.message}`)
+    }
+  }
+
+  return (
+    <div className="card" style={{ marginTop: 16 }}>
+      <h3>🔑 Extension Activation Keys</h3>
+      
+      <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+        <input 
+          type="text"
+          placeholder="Hostname (optional)"
+          value={hostname}
+          onChange={(e) => setHostname(e.target.value)}
+          style={{ flex: 1 }}
+        />
+        <button className="btn primary" onClick={generateKey}>+ Generate Key</button>
+        <button className="btn" onClick={loadKeys}>{loading ? '...' : '↻ Refresh'}</button>
+      </div>
+
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ minWidth: '1200px' }}>
+          <thead>
+            <tr>
+              <th>Status</th><th>Key (Click to Copy)</th><th>Extension ID</th><th>Hostname</th>
+              <th>Created</th><th>Last Used</th><th>User Agent</th><th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {keys.map((k) => (
+              <tr key={k.id}>
+                <td><span className="type-badge">{k.status}</span></td>
+                <td 
+                  className="mono" 
+                  title={k.key}
+                  onClick={() => copyToClipboard(k.key)}
+                  style={{ 
+                    cursor: 'pointer', 
+                    padding: '8px 12px',
+                    backgroundColor: copiedKey === k.key ? '#dcfce7' : 'transparent',
+                    borderRadius: '4px',
+                    transition: 'background-color 0.2s'
+                  }}
+                >
+                  {copiedKey === k.key ? '✅ Copied!' : k.key_short}
+                </td>
+                <td className="mono">{k.extension_id || '—'}</td>
+                <td>{k.hostname || '—'}</td>
+                <td>{(k.created_at || '').replace('T', ' ').substring(0, 16)}</td>
+                <td>{k.last_used ? (k.last_used || '').replace('T', ' ').substring(0, 16) : '—'}</td>
+                <td style={{ fontSize: '11px' }}>{k.user_agent}</td>
+                <td>
+                  <button 
+                    className="btn" 
+                    style={{ padding: '4px 8px', fontSize: '12px', marginRight: '4px' }}
+                    onClick={() => showKeyUsage(k.key)}
+                    title="View which devices used this key"
+                  >
+                    📊 Usage
+                  </button>
+                  <button 
+                    className="btn" 
+                    style={{ padding: '4px 8px', fontSize: '12px', marginRight: '4px' }}
+                    onClick={() => toggleKey(k.key, k.is_active)}
+                  >
+                    {k.is_active ? '🔴 Deactivate' : '🟢 Activate'}
+                  </button>
+                  <button 
+                    className="btn" 
+                    style={{ padding: '4px 8px', fontSize: '12px', color: '#dc2626' }}
+                    onClick={() => deleteKey(k.key)}
+                  >
+                    🗑 Delete
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {keys.length === 0 && <div className="empty">No activation keys. Click "Generate Key" to create one.</div>}
+      
+      <div style={{ marginTop: 12, fontSize: '12px', color: '#64748b' }}>
+        📊 Total: {keys.length} key(s) | 🟢 Active: {keys.filter(k => k.is_active).length} | 🔴 Inactive: {keys.filter(k => !k.is_active).length}
+      </div>
+
+      {usagePopup && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0,
+          width: '100%', height: '100%',
+          background: 'rgba(0,0,0,0.7)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999
+        }}>
+          <div style={{
+            background: 'white',
+            borderRadius: '12px',
+            padding: '24px',
+            maxWidth: '500px',
+            maxHeight: '80vh',
+            overflowY: 'auto'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ margin: 0 }}>📊 Key Usage</h3>
+              <button 
+                onClick={() => setUsagePopup(null)}
+                style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ marginBottom: '16px', padding: '12px', background: '#f0f4f8', borderRadius: '8px' }}>
+              <div><strong>Key:</strong> {usagePopup.key}</div>
+              <div><strong>Total Requests:</strong> {usagePopup.total_requests}</div>
+              <div><strong>First Used:</strong> {(usagePopup.first_used || '').replace('T', ' ').substring(0, 19)}</div>
+              <div><strong>Last Used:</strong> {usagePopup.last_used ? (usagePopup.last_used || '').replace('T', ' ').substring(0, 19) : '—'}</div>
+            </div>
+
+            <h4>Devices Using This Key:</h4>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
+                  <th style={{ textAlign: 'left', padding: '8px', paddingBottom: '12px' }}>Hostname</th>
+                  <th style={{ textAlign: 'right', padding: '8px', paddingBottom: '12px' }}>Requests</th>
+                  <th style={{ textAlign: 'left', padding: '8px', paddingBottom: '12px' }}>Last Used</th>
+                </tr>
+              </thead>
+              <tbody>
+                {usagePopup.hostnames && usagePopup.hostnames.length > 0 ? (
+                  usagePopup.hostnames.map((h, idx) => (
+                    <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '8px' }}><strong>{h.hostname}</strong></td>
+                      <td style={{ padding: '8px', textAlign: 'right' }}>{h.count}</td>
+                      <td style={{ padding: '8px', fontSize: '12px', color: '#64748b' }}>
+                        {(h.last_used || '').replace('T', ' ').substring(0, 19)}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="3" style={{ padding: '12px', textAlign: 'center', color: '#94a3b8' }}>
+                      No usage data yet
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+
+            <button 
+              className="btn primary"
+              onClick={() => setUsagePopup(null)}
+              style={{ marginTop: '16px', width: '100%' }}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function LogsTable({ logs }) {
   return (
-    <div className="card" style={{ padding: '6px 6px 2px' }}>
-      <table>
+    <div className="card" style={{ padding: '6px 6px 2px', overflowX: 'auto' }}>
+      <table style={{ minWidth: '1200px' }}>
         <thead>
           <tr>
-            <th>Time (UTC)</th><th>Type</th><th>Client</th><th>Host / IP</th><th>Source</th><th>Severity</th>
-            <th>Categories</th><th>Redacted Prompt</th><th>Action</th>
+            <th>Time (UTC)</th><th>Type</th><th>API Key</th><th>Hostname / IP</th><th>Source</th><th>Severity</th>
+            <th>Findings</th><th>Categories</th><th>Redacted Prompt</th><th>Action</th>
           </tr>
         </thead>
         <tbody>
           {logs.map((L) => (
             <tr key={L.id}>
-              <td>{(L.created_at || '').replace('T', ' ').replace('+00:00', '')}</td>
-              <td><span className="type-badge">{L.scan_type || 'text'}</span></td>
-              <td className="mono">{L.client_id || '—'}</td>
-              <td className="mono" title={L.user_agent || ''}>{L.ip || '—'}</td>
-              <td>{L.source || '—'}</td>
-              <td><span className={'badge sev-' + L.severity}>{L.severity}</span></td>
-              <td>{(L.categories || []).map((c) => <span className="cat" key={c}>{c}</span>)}{(L.categories || []).length === 0 && '—'}</td>
-              <td className="mono" title={L.redacted_prompt || ''}>{L.redacted_prompt || '—'}</td>
-              <td>{L.allow_send ? '✅ Allowed' : '⛔ Blocked'}</td>
+              <td style={{ minWidth: '160px' }}>{(L.created_at || '').replace('T', ' ').replace('+00:00', '')}</td>
+              <td style={{ minWidth: '70px' }}><span className="type-badge">{L.scan_type || 'text'}</span></td>
+              <td style={{ minWidth: '100px' }} className="mono" title={L.activation_key || ''}>{L.activation_key ? L.activation_key.substring(0, 8) + '...' + L.activation_key.substring(L.activation_key.length - 4) : '—'}</td>
+              <td style={{ minWidth: '180px' }} className="mono" title={L.user_agent || ''}>
+                <div>{L.hostname || '—'}</div>
+                <div style={{ fontSize: '11px', color: '#94a3b8' }}>{L.ip || '—'}</div>
+              </td>
+              <td style={{ minWidth: '120px' }}>{L.source || '—'}</td>
+              <td style={{ minWidth: '90px' }}><span className={'badge sev-' + L.severity}>{L.severity}</span></td>
+              <td style={{ minWidth: '70px', textAlign: 'center' }}><strong>{L.findings_count || 0}</strong></td>
+              <td style={{ minWidth: '150px' }}>{(L.categories || []).map((c) => <span className="cat" key={c}>{c}</span>)}{(L.categories || []).length === 0 && '—'}</td>
+              <td style={{ minWidth: '200px' }} className="mono" title={L.redacted_prompt || ''}>{L.redacted_prompt || '—'}</td>
+              <td style={{ minWidth: '80px' }}>{L.allow_send ? '✅ Allowed' : '⛔ Blocked'}</td>
             </tr>
           ))}
         </tbody>

@@ -43,3 +43,9 @@ export async function getLogs(filters = {}) {
   if (r.status === 401) throw new Error('unauthorized')
   return r.json()
 }
+
+export async function getActivationKeys() {
+  const r = await req('/api/admin/activation-keys')
+  if (r.status === 401) throw new Error('unauthorized')
+  return r.json()
+}

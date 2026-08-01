@@ -26,6 +26,8 @@
         "https://*.claude.ai/*"
       ],
       "js": [
+        "js/key-prompt.js",
+        "js/activator.js",
         "js/critical_blocker.js",
         "js/document_scanner.js",
         "detection.js",

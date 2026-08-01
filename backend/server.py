@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import asyncio
 from typing import List
+from datetime import datetime, timezone
 
 from fastapi import FastAPI, Depends, HTTPException, Response, Cookie, Query, Request, Body
 from fastapi.middleware.cors import CORSMiddleware
@@ -44,6 +45,7 @@ from typing import Optional
 import base64
 import binascii
 import os
+import socket
 
 import auth
 import ocr
@@ -314,7 +316,7 @@ app.add_middleware(
     allow_origin_regex=r"https://.*\.(openai\.com|claude\.ai)$",
     allow_credentials=True,
     allow_methods=["POST", "GET", "OPTIONS"],
-    allow_headers=["Content-Type"],
+    allow_headers=["Content-Type", "X-Activation-Key"],  # ← Added X-Activation-Key header
     max_age=600,
 )
 
@@ -331,9 +333,23 @@ class ScanRequest(BaseModel):
     user_agent: Optional[str] = Field(default=None, max_length=400)
 
 
+class ActivationRequest(BaseModel):
+    """Request to generate an activation key."""
+    hostname: Optional[str] = Field(default=None, max_length=255)
+    user_agent: Optional[str] = Field(default=None, max_length=400)
+
+
 @app.on_event("startup")
 async def _startup():
     storage.init_db()
+
+
+def get_hostname() -> str:
+    """Get the hostname of the machine"""
+    try:
+        return socket.gethostname()
+    except Exception:
+        return "unknown"
 
 
 @app.get("/health")
@@ -341,7 +357,68 @@ async def health():
     return {"status": "ok", "detectors": len(DETECTORS)}
 
 
-async def _scan_and_log(body: ScanRequest, http: Optional[Request] = None) -> dict:
+async def verify_activation_key(request: Request) -> str:
+    """
+    Dependency to verify activation key in request headers.
+    Extracts 'X-Activation-Key' from request headers and validates it.
+    Returns the key if valid, raises HTTPException if invalid.
+    """
+    key = request.headers.get("X-Activation-Key")
+    
+    if not key:
+        raise HTTPException(
+            status_code=401,
+            detail="Missing activation key. Include 'X-Activation-Key' header."
+        )
+    
+    # Validate the key
+    key_info = storage.validate_activation_key(key)
+    
+    if not key_info:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or deactivated activation key."
+        )
+    
+    return key
+
+
+@app.post("/api/activate")
+async def api_activate(body: ActivationRequest, http: Request):
+    """
+    Generate a unique activation key for the extension.
+    
+    This key must be used in all subsequent API requests.
+    The extension receives this key and stores it securely.
+    """
+    import uuid
+    
+    # Generate a unique extension ID based on hostname + UUID
+    extension_id = f"{body.hostname or 'unknown'}-{uuid.uuid4().hex[:8]}"
+    
+    try:
+        # Generate activation key
+        key = storage.generate_activation_key(
+            extension_id=extension_id,
+            hostname=body.hostname,
+            user_agent=body.user_agent
+        )
+        
+        return {
+            "status": "success",
+            "activation_key": key,
+            "extension_id": extension_id,
+            "message": "Extension activated. Store this key securely and include it in all API requests.",
+            "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds")
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Failed to generate activation key: {str(e)}"
+        }
+
+
+async def _scan_and_log(body: ScanRequest, http: Optional[Request] = None, activation_key: str = Depends(verify_activation_key)) -> dict:
     result, raw = await analyze(body.prompt)
 
     # Auto-correct text: the prompt with every sensitive value replaced by a
@@ -350,26 +427,31 @@ async def _scan_and_log(body: ScanRequest, http: Optional[Request] = None) -> di
     result["sanitized"] = sanitized
 
     ip = None
+    hostname = get_hostname()
     if http is not None and http.client:
         # Respect a reverse-proxy header if present, else the socket peer.
         ip = http.headers.get("x-forwarded-for", http.client.host).split(",")[0].strip()
     user_agent = body.user_agent or (http.headers.get("user-agent") if http else None)
 
-    # Store a redacted audit record — who (client_id / ip), where (source), what
-    # severity — without persisting the actual sensitive value.
+    # Store a redacted audit record — only if findings detected (severity != SAFE)
+    # who (client_id / ip), where (source), what severity
     try:
-        storage.log_scan(
-            client_id=body.client_id,
-            source=body.source,
-            severity=result["severity"],
-            action=result["action"],
-            allow_send=result["allowSend"],
-            findings_count=len(result["findings"]),
-            categories=sorted(result.get("summary", {}).keys()),
-            redacted_prompt=sanitized,
-            ip=ip,
-            user_agent=user_agent,
-        )
+        if result["severity"] != "SAFE":
+            storage.log_scan(
+                client_id=body.client_id,
+                source=body.source,
+                severity=result["severity"],
+                action=result["action"],
+                allow_send=result["allowSend"],
+                findings_count=len(result["findings"]),
+                categories=sorted(result.get("summary", {}).keys()),
+                redacted_prompt=sanitized,
+                ip=ip,
+                hostname=hostname,
+                user_agent=user_agent,
+                scan_type="text",
+                activation_key=activation_key,
+            )
     except Exception:
         pass  # logging must never break a scan
 
@@ -377,14 +459,14 @@ async def _scan_and_log(body: ScanRequest, http: Optional[Request] = None) -> di
 
 
 @app.post("/api/scan")
-async def api_scan(body: ScanRequest, http: Request):
-    return await _scan_and_log(body, http)
+async def api_scan(body: ScanRequest, http: Request, activation_key: str = Depends(verify_activation_key)):
+    return await _scan_and_log(body, http, activation_key)
 
 
 # Legacy alias so existing clients hitting /scan keep working.
 @app.post("/scan")
-async def legacy_scan(body: ScanRequest, http: Request):
-    return await _scan_and_log(body, http)
+async def legacy_scan(body: ScanRequest, http: Request, activation_key: str = Depends(verify_activation_key)):
+    return await _scan_and_log(body, http, activation_key)
 
 
 # --- Image scanning (OCR then detect) -----------------------------------------
@@ -411,7 +493,7 @@ def _decode_image(data: str) -> bytes:
 
 
 @app.post("/api/scan-image")
-async def api_scan_image(body: ImageScanRequest, http: Request):
+async def api_scan_image(body: ImageScanRequest, http: Request, activation_key: str = Depends(verify_activation_key)):
     if not ocr.available():
         return {"ocr": False, "allowSend": True, "severity": "SAFE", "findings": [],
                 "message": "OCR engine not installed on the backend."}
@@ -433,32 +515,171 @@ async def api_scan_image(body: ImageScanRequest, http: Request):
         f["reason"] = f"🖼 {f['reason']} (in image)"
 
     ip = None
+    hostname = get_hostname()
     if http.client:
         ip = http.headers.get("x-forwarded-for", http.client.host).split(",")[0].strip()
 
     try:
-        storage.log_scan(
-            client_id=body.client_id,
-            source=(body.source or "") + " [image]",
-            severity=result["severity"],
-            action=result["action"],
-            allow_send=result["allowSend"],
-            findings_count=len(result["findings"]),
-            categories=sorted(result.get("summary", {}).keys()),
-            redacted_prompt="[image] " + redact(text, rawf),
-            ip=ip,
-            user_agent=body.user_agent or http.headers.get("user-agent"),
-            scan_type="image",
-        )
+        if result["severity"] != "SAFE":
+            storage.log_scan(
+                client_id=body.client_id,
+                source=(body.source or "") + " [image]",
+                severity=result["severity"],
+                action=result["action"],
+                allow_send=result["allowSend"],
+                findings_count=len(result["findings"]),
+                categories=sorted(result.get("summary", {}).keys()),
+                redacted_prompt="[image] " + redact(text, rawf),
+                ip=ip,
+                hostname=hostname,
+                user_agent=body.user_agent or http.headers.get("user-agent"),
+                scan_type="image",
+                activation_key=activation_key,
+            )
     except Exception:
         pass
 
     return result
 
 
-@app.get("/api/logs")
-async def api_logs(limit: int = 50, client_id: Optional[str] = None):
-    return {"logs": storage.recent(limit=min(limit, 500), client_id=client_id)}
+@app.get("/api/admin/activation-keys")
+async def api_get_activation_keys(limit: int = 100):
+    """Get all activation keys with stats"""
+    try:
+        keys = storage.get_all_activation_keys(limit=limit)
+        return {
+            "status": "success",
+            "total": len(keys),
+            "keys": keys
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e),
+            "keys": []
+        }
+
+
+@app.post("/api/admin/generate-key")
+async def api_generate_key(hostname: Optional[str] = None):
+    """Generate a new activation key"""
+    try:
+        import uuid
+        extension_id = f"{hostname or 'admin'}-{uuid.uuid4().hex[:8]}"
+        key = storage.generate_activation_key(
+            extension_id=extension_id,
+            hostname=hostname,
+            user_agent="Admin Dashboard"
+        )
+        return {
+            "status": "success",
+            "key": key,
+            "extension_id": extension_id,
+            "message": "Activation key generated"
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
+
+@app.post("/api/admin/deactivate-key")
+async def api_deactivate_key(key: str = Query(...)):
+    """Deactivate an activation key"""
+    try:
+        success = storage.deactivate_key(key)
+        if success:
+            return {
+                "status": "success",
+                "message": f"Key {key[:16]}... deactivated"
+            }
+        else:
+            return {
+                "status": "error",
+                "message": "Key not found"
+            }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
+
+@app.post("/api/admin/activate-key")
+async def api_activate_key(key: str = Query(...)):
+    """Reactivate a deactivated key"""
+    try:
+        success = storage.reactivate_key(key)
+        if success:
+            return {
+                "status": "success",
+                "message": f"Key {key[:16]}... reactivated"
+            }
+        else:
+            return {
+                "status": "error",
+                "message": "Key not found"
+            }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
+
+@app.get("/api/admin/key-usage/{key}")
+async def api_key_usage(key: str):
+    """Get usage statistics for a specific activation key.
+    
+    Shows which hostnames/devices have used this key and how many times.
+    """
+    try:
+        usage = storage.get_key_usage(key)
+        if not usage:
+            return {
+                "status": "error",
+                "message": "Key not found"
+            }
+        
+        return {
+            "status": "success",
+            "usage": usage
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
+
+@app.delete("/api/admin/delete-key")
+async def api_delete_key(key: str = Query(...)):
+    """Delete an activation key"""
+    try:
+        success = storage.delete_key(key)
+        if success:
+            return {
+                "status": "success",
+                "message": f"Key {key[:16]}... deleted"
+            }
+        else:
+            return {
+                "status": "error",
+                "message": "Key not found"
+            }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
+
+@app.get("/api/admin/logs")
+async def api_admin_logs(limit: int = 50, client_id: Optional[str] = None):
+    """Fetch recent scan logs (ordered by latest first)"""
+    logs = storage.recent(limit=min(limit, 500), client_id=client_id)
+    return {"logs": logs, "total": len(logs)}
 
 
 @app.get("/api/stats")
@@ -669,6 +890,24 @@ async def admin_logs(
     )
 
 
+@app.get("/api/admin/key-usage/{key}")
+async def admin_key_usage(key: str, user: str = Depends(require_admin)):
+    """Get usage statistics for a specific activation key.
+    
+    Shows all scans that used THIS SPECIFIC KEY.
+    Returns which hostnames/devices used it and how many times.
+    """
+    usage = storage.get_key_usage(key)
+    if not usage:
+        return {
+            "status": "error",
+            "message": "Key not found"
+        }
+    return {
+        "status": "success",
+        "usage": usage
+    }
+
 
 # ============================================================================
 # DOCUMENT SCANNING ENDPOINT (NEW)
@@ -685,7 +924,7 @@ class DocumentScanRequest(BaseModel):
 
 
 @app.post("/api/scan-document")
-async def api_scan_document(body: DocumentScanRequest, http: Request):
+async def api_scan_document(body: DocumentScanRequest, http: Request, activation_key: str = Depends(verify_activation_key)):
     """
     Scan uploaded document for sensitive information.
     
@@ -702,29 +941,34 @@ async def api_scan_document(body: DocumentScanRequest, http: Request):
             document_type=body.document_type
         )
         
-        # Log the document scan
+        # Log the document scan only if findings detected (severity != SAFE)
         try:
             findings = result.get("findings", [])
             metadata_findings = result.get("metadata_findings", [])
             all_findings = findings + metadata_findings
+            severity = result.get("severity", "LOW")
             
-            ip = None
-            if http.client:
-                ip = http.headers.get("x-forwarded-for", http.client.host).split(",")[0].strip()
-            
-            storage.log_scan(
-                client_id=body.client_id,
-                source=(body.source or "") + " [document]",
-                severity=result.get("severity", "LOW"),
-                action=result.get("action", "ALLOW"),
-                allow_send=(result.get("action", "ALLOW") == "ALLOW"),
-                findings_count=len(all_findings),
-                categories=sorted({f.get("reason", "Unknown") for f in all_findings}),
-                redacted_prompt=f"[document] {body.filename}: {result.get('document_info', {}).get('file_type', 'unknown')} - {len(all_findings)} findings",
-                ip=ip,
-                user_agent=http.headers.get("user-agent"),
-                scan_type="document",
-            )
+            if severity != "SAFE" and len(all_findings) > 0:
+                ip = None
+                hostname = get_hostname()
+                if http.client:
+                    ip = http.headers.get("x-forwarded-for", http.client.host).split(",")[0].strip()
+                
+                storage.log_scan(
+                    client_id=body.client_id,
+                    source=(body.source or "") + " [document]",
+                    severity=severity,
+                    action=result.get("action", "ALLOW"),
+                    allow_send=(result.get("action", "ALLOW") == "ALLOW"),
+                    findings_count=len(all_findings),
+                    categories=sorted({f.get("reason", "Unknown") for f in all_findings}),
+                    redacted_prompt=f"[document] {body.filename}: {result.get('document_info', {}).get('file_type', 'unknown')} - {len(all_findings)} findings",
+                    ip=ip,
+                    hostname=hostname,
+                    user_agent=http.headers.get("user-agent"),
+                    scan_type="document",
+                    activation_key=activation_key,
+                )
         except Exception as log_err:
             print(f"Failed to log document scan: {log_err}")
         

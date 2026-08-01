@@ -160,6 +160,7 @@
     //   - Times out via AbortController so a slow/hung backend cannot freeze UI.
     //   - On any error, falls back per config (default: local rules), so the
     //     gateway keeps working even if the backend is down.
+    //   - Includes X-Activation-Key header for extension authentication.
     class RemoteDetectionProvider {
         constructor(options) {
             options = options || {};
@@ -171,6 +172,7 @@
             // Identifies which extension install / site sent the prompt. Set by
             // content.js once the client id has been read from chrome.storage.
             this.context = options.context || {};
+            this.activationKey = options.activationKey || null;
         }
 
         _errorResult(text) {
@@ -188,12 +190,35 @@
             const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
             const timer = controller ? setTimeout(() => controller.abort(), this.timeoutMs) : null;
             try {
+                const headers = { 'Content-Type': 'application/json' };
+                
+                // Add activation key if available
+                if (this.activationKey) {
+                    headers['X-Activation-Key'] = this.activationKey;
+                }
+                
                 const res = await this._fetch(this.endpoint, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: headers,
                     body: JSON.stringify(Object.assign({ prompt: text }, this.context)),
                     signal: controller ? controller.signal : undefined
                 });
+                
+                // Handle 401 Unauthorized specifically (no valid activation key)
+                if (res && res.status === 401) {
+                    return {
+                        status: 'BLOCKED',
+                        severity: 'CRITICAL',
+                        findings: [{
+                            severity: 'CRITICAL',
+                            reason: '🔐 Extension Not Authorized - No valid activation key. Ask your administrator to set it up.'
+                        }],
+                        allowSend: false,
+                        message: '🔐 Extension Not Authorized - No valid activation key. Ask your administrator to set it up.',
+                        reason: '🔐 Extension Not Authorized - No valid activation key. Ask your administrator to set it up.'
+                    };
+                }
+                
                 if (!res || !res.ok) return this._errorResult(text);
                 const data = await res.json();
                 // Accept either { findings: [...] } or a bare array of findings.
@@ -221,8 +246,8 @@
     const PSG_CONFIG = {
         mode: 'remote',
         endpoint: 'http://127.0.0.1:3000/api/scan',
-        timeoutMs: 4000,
-        onError: 'local'
+        timeoutMs: 8000,  // ← Increased from 4000ms to 8000ms for slower networks
+        onError: 'safe'  // ← Trust backend completely; allow if fails
     };
 
     function createEngine(config) {

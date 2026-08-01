@@ -37,14 +37,36 @@
                 engine.context = { source, user_agent };
                 return;
             }
-            chrome.storage.local.get(['psg_client_id'], data => {
+            
+            // Get both client ID and activation key
+            chrome.storage.local.get(['psg_client_id', 'psg_activation_key'], data => {
                 let id = data && data.psg_client_id;
                 if (!id) {
                     id = (crypto && crypto.randomUUID) ? crypto.randomUUID()
                         : 'psg-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
                     chrome.storage.local.set({ psg_client_id: id });
                 }
+                
+                // Add context
                 engine.context = { client_id: id, source, user_agent };
+                
+                // Add activation key if available
+                if (data && data.psg_activation_key) {
+                    try {
+                        // Decrypt the key (using same logic as activator.js)
+                        const secret = 'psg-extension-secret';
+                        const encrypted = atob(data.psg_activation_key);
+                        let decrypted = '';
+                        for (let i = 0; i < encrypted.length; i++) {
+                            decrypted += String.fromCharCode(
+                                encrypted.charCodeAt(i) ^ secret.charCodeAt(i % secret.length)
+                            );
+                        }
+                        engine.activationKey = decrypted;
+                    } catch (e) {
+                        console.error('Failed to decrypt activation key:', e);
+                    }
+                }
             });
         } catch (_e) {
             engine.context = { source, user_agent };
@@ -90,6 +112,7 @@
                         <span class="psg-rec-text"></span>
                     </div>
                     <button class="psg-fix-btn" style="display:none">✨ Auto-fix &amp; replace</button>
+                    <button class="psg-add-key-btn" id="addKeyBtn" style="margin-top: 12px; width: 100%; padding: 10px; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px;">🔑 Add Activation Key</button>
                 </div>
             `;
 
@@ -100,6 +123,12 @@
             });
             const fixButton = panel.querySelector('.psg-fix-btn');
             if (fixButton) fixButton.addEventListener('click', () => this.applyFix());
+            
+            // Add Key button handler
+            const addKeyButton = document.getElementById('addKeyBtn');
+            if (addKeyButton) {
+                addKeyButton.addEventListener('click', () => this.showAddKeyDialog());
+            }
 
             this.panelElement = panel;
             return panel;
@@ -219,6 +248,22 @@
                 fixBtn.style.display = canFix ? 'block' : 'none';
             }
 
+            // Show Add Key button ONLY when 401 Unauthorized (severity CRITICAL + "Not Authorized")
+            const addKeyBtn = this.panelElement.querySelector('.psg-add-key-btn');
+            if (addKeyBtn) {
+                // Check if it's a 401 error by looking for "Not Authorized" in message or findings
+                const messageHasUnauth = state.message && state.message.includes('Not Authorized');
+                const findingsHaveUnauth = state.findings && state.findings.some(f => f.reason && f.reason.includes('Not Authorized'));
+                const isUnauthorized = state.severity === 'CRITICAL' && (messageHasUnauth || findingsHaveUnauth);
+                
+                addKeyBtn.style.display = isUnauthorized ? 'block' : 'none';
+                console.log('🔐 Button visibility:', { 
+                    severity: state.severity, 
+                    isUnauth: isUnauthorized,
+                    display: isUnauthorized ? 'BLOCK' : 'none'
+                });
+            }
+
             if (state.allowSend) {
                 this.enableSend();
             } else {
@@ -264,6 +309,309 @@
                 btn.classList.add('psg-button-disabled');
                 btn.title = 'Cannot send: Contains sensitive information';
             }
+        }
+
+        showAddKeyDialog() {
+            // Create modal overlay
+            const overlay = document.createElement('div');
+            overlay.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.7);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 999999;
+            `;
+
+            // Create dialog box
+            const dialog = document.createElement('div');
+            dialog.style.cssText = `
+                background: white;
+                padding: 30px;
+                border-radius: 12px;
+                max-width: 450px;
+                width: 90%;
+                box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            `;
+
+            dialog.innerHTML = `
+                <div style="text-align: center; margin-bottom: 20px;">
+                    <div style="font-size: 40px; margin-bottom: 10px;">🔑</div>
+                    <h2 style="margin: 0; color: #1f2937;">Add Activation Key</h2>
+                </div>
+
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-size: 12px; color: #666; margin-bottom: 8px; font-weight: 600;">
+                        Enter your 64-character activation key:
+                    </label>
+                    <input type="password" id="keyInput" placeholder="Paste your key here..." 
+                        style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px; font-family: monospace; box-sizing: border-box;" />
+                    <label style="display: flex; align-items: center; margin-top: 8px; font-size: 12px; color: #666; cursor: pointer;">
+                        <input type="checkbox" id="showKey" style="margin-right: 6px;" />
+                        Show key
+                    </label>
+                </div>
+
+                <div style="margin-bottom: 20px;">
+                    <button id="confirmBtn" style="width: 100%; padding: 12px; background: #10b981; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px;">
+                        ✅ Add Key
+                    </button>
+                </div>
+
+                <div id="errorMsg" style="color: #dc2626; font-size: 12px; margin-bottom: 15px; padding: 10px; background: #fee2e2; border-radius: 6px; display: none; text-align: center;">
+                </div>
+
+                <button id="closeBtn" style="width: 100%; padding: 10px; background: #f3f4f6; color: #666; border: none; border-radius: 8px; cursor: pointer; font-size: 14px;">
+                    Close
+                </button>
+            `;
+
+            overlay.appendChild(dialog);
+            document.body.appendChild(overlay);
+
+            // Event handlers
+            const keyInput = document.getElementById('keyInput');
+            const showKeyCheckbox = document.getElementById('showKey');
+            const confirmBtn = document.getElementById('confirmBtn');
+            const closeBtn = document.getElementById('closeBtn');
+            const errorMsg = document.getElementById('errorMsg');
+
+            // Toggle show/hide key
+            showKeyCheckbox.addEventListener('change', () => {
+                keyInput.type = showKeyCheckbox.checked ? 'text' : 'password';
+            });
+
+            // Close button
+            closeBtn.addEventListener('click', () => overlay.remove());
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) overlay.remove();
+            });
+
+            // Validate and save key
+            const validateAndSave = () => {
+                const key = keyInput.value.trim();
+
+                // Validate: must be exactly 64 hex characters
+                if (!key || key.length !== 64 || !/^[a-f0-9]{64}$/i.test(key)) {
+                    errorMsg.textContent = '❌ Invalid key. Must be exactly 64 hexadecimal characters (0-9, a-f).';
+                    errorMsg.style.display = 'block';
+                    keyInput.style.borderColor = '#dc2626';
+                    return;
+                }
+
+                // Encrypt key (XOR + Base64, same as key-prompt.js)
+                const secret = 'psg-extension-secret';
+                let encrypted = '';
+                for (let i = 0; i < key.length; i++) {
+                    encrypted += String.fromCharCode(
+                        key.charCodeAt(i) ^ secret.charCodeAt(i % secret.length)
+                    );
+                }
+                const encryptedKey = btoa(encrypted);
+
+                // Store in chrome storage
+                chrome.storage.local.set({ 'psg_activation_key': encryptedKey }, () => {
+                    if (chrome.runtime.lastError) {
+                        errorMsg.textContent = '❌ Failed to save key. Please try again.';
+                        errorMsg.style.display = 'block';
+                        return;
+                    }
+
+                    // Success
+                    confirmBtn.disabled = true;
+                    confirmBtn.textContent = '✅ Key saved! Reloading...';
+                    confirmBtn.style.background = '#059669';
+
+                    setTimeout(() => {
+                        overlay.remove();
+                        window.location.reload();
+                    }, 1500);
+                });
+            };
+
+            confirmBtn.addEventListener('click', validateAndSave);
+            keyInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') validateAndSave();
+            });
+
+            keyInput.focus();
+        }
+
+        showAddKeyDialog() {
+            // Show key input dialog (similar to key-prompt.js logic)
+            const overlay = document.createElement('div');
+            overlay.id = 'psg-add-key-overlay';
+            overlay.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.7);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 999999;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            `;
+
+            const dialog = document.createElement('div');
+            dialog.style.cssText = `
+                background: white;
+                border-radius: 12px;
+                padding: 32px;
+                width: 90%;
+                max-width: 450px;
+                box-shadow: 0 25px 50px rgba(0,0,0,0.3);
+            `;
+
+            dialog.innerHTML = `
+                <div style="text-align: center;">
+                    <div style="font-size: 40px; margin-bottom: 16px;">🔑</div>
+                    <h2 style="margin: 0 0 8px 0; color: #1f2937; font-size: 20px;">Add Activation Key</h2>
+                    <p style="margin: 0 0 24px 0; color: #6b7280; font-size: 14px;">
+                        Enter your 64-character activation key to enable scanning
+                    </p>
+                </div>
+
+                <div style="margin-bottom: 16px;">
+                    <label style="display: block; font-size: 12px; color: #6b7280; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;">
+                        Activation Key
+                    </label>
+                    <input 
+                        id="psg-add-key-input"
+                        type="password" 
+                        placeholder="Paste your 64-character key here..."
+                        style="
+                            width: 100%;
+                            padding: 12px;
+                            border: 1px solid #d1d5db;
+                            border-radius: 8px;
+                            font-size: 14px;
+                            font-family: monospace;
+                            box-sizing: border-box;
+                        "
+                    />
+                    <label style="display: flex; align-items: center; margin-top: 8px; font-size: 12px; color: #6b7280; cursor: pointer;">
+                        <input 
+                            id="psg-add-show-key"
+                            type="checkbox"
+                            style="margin-right: 6px; cursor: pointer;"
+                        />
+                        Show key
+                    </label>
+                </div>
+
+                <div style="margin-bottom: 16px;">
+                    <button 
+                        id="psg-add-key-confirm"
+                        style="
+                            width: 100%;
+                            padding: 12px;
+                            background: linear-gradient(135deg, #059669, #10b981);
+                            border: none;
+                            color: white;
+                            font-weight: 600;
+                            border-radius: 8px;
+                            cursor: pointer;
+                            font-size: 14px;
+                            transition: transform 0.15s;
+                        "
+                        onmouseover="this.style.transform='translateY(-2px)'"
+                        onmouseout="this.style.transform='translateY(0)'"
+                    >
+                        ✅ Add Key
+                    </button>
+                </div>
+
+                <div id="psg-add-key-error" style="
+                    margin-bottom: 16px;
+                    padding: 12px;
+                    background: #fee2e2;
+                    color: #b91c1c;
+                    border: 1px solid #fca5a5;
+                    border-radius: 6px;
+                    font-size: 13px;
+                    display: none;
+                    text-align: center;
+                "></div>
+            `;
+
+            overlay.appendChild(dialog);
+            document.body.appendChild(overlay);
+
+            const keyInput = document.getElementById('psg-add-key-input');
+            const showKeyCheckbox = document.getElementById('psg-add-show-key');
+            const confirmBtn = document.getElementById('psg-add-key-confirm');
+            const errorMsg = document.getElementById('psg-add-key-error');
+
+            showKeyCheckbox.addEventListener('change', () => {
+                keyInput.type = showKeyCheckbox.checked ? 'text' : 'password';
+            });
+
+            const validateAndSave = () => {
+                const key = keyInput.value.trim();
+                
+                if (!key || key.length !== 64 || !/^[a-f0-9]{64}$/i.test(key)) {
+                    errorMsg.textContent = '❌ Invalid key format. Must be 64 hexadecimal characters.';
+                    errorMsg.style.display = 'block';
+                    keyInput.style.borderColor = '#fca5a5';
+                    return;
+                }
+
+                // Store key (use same encryption as key-prompt.js)
+                const secret = 'psg-extension-secret';
+                let encrypted = '';
+                for (let i = 0; i < key.length; i++) {
+                    encrypted += String.fromCharCode(
+                        key.charCodeAt(i) ^ secret.charCodeAt(i % secret.length)
+                    );
+                }
+                const encryptedKey = btoa(encrypted);
+
+                chrome.storage.local.set(
+                    { 'psg_activation_key': encryptedKey },
+                    () => {
+                        if (chrome.runtime.lastError) {
+                            errorMsg.textContent = '❌ Failed to save key. Please try again.';
+                            errorMsg.style.display = 'block';
+                            return;
+                        }
+
+                        // Success
+                        const successMsg = document.createElement('div');
+                        successMsg.style.cssText = `
+                            padding: 16px;
+                            background: #dcfce7;
+                            color: #15803d;
+                            border: 1px solid #86efac;
+                            border-radius: 6px;
+                            text-align: center;
+                            font-weight: 600;
+                            margin-bottom: 16px;
+                        `;
+                        successMsg.textContent = '✅ Key saved! Reloading...';
+                        dialog.insertBefore(successMsg, dialog.firstChild);
+
+                        setTimeout(() => {
+                            overlay.remove();
+                            window.location.reload();
+                        }, 1500);
+                    }
+                );
+            };
+
+            confirmBtn.addEventListener('click', validateAndSave);
+            keyInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') validateAndSave();
+            });
+
+            keyInput.focus();
         }
     }
 
